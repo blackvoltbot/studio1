@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { auth, db } from '@/lib/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Settings, Lock, LogOut, ShieldAlert, Save, RefreshCw } from 'lucide-react';
@@ -19,8 +19,13 @@ export default function AdminDashboardPage() {
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  
+  const auth = useAuth();
+  const db = useFirestore();
 
   useEffect(() => {
+    if (!auth || !db) return;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         router.push('/admin/login');
@@ -34,9 +39,10 @@ export default function AdminDashboardPage() {
       }
     });
     return () => unsubscribe();
-  }, [router]);
+  }, [router, auth, db]);
 
   const updatePassword = async () => {
+    if (!db) return;
     setIsSaving(true);
     try {
       await updateDoc(doc(db, 'settings', 'global'), {
@@ -51,6 +57,7 @@ export default function AdminDashboardPage() {
   };
 
   const triggerForceLogout = async () => {
+    if (!db) return;
     if (!confirm("Confirm global session termination?")) return;
     setIsSaving(true);
     try {
@@ -65,11 +72,16 @@ export default function AdminDashboardPage() {
   };
 
   const handleLogout = async () => {
+    if (!auth) return;
     await signOut(auth);
     router.push('/admin/login');
   };
 
-  if (isLoading) return null;
+  if (isLoading) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+    </div>
+  );
 
   return (
     <div className="min-h-screen p-4 md:p-8 bg-background">

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext } from 'react';
@@ -19,9 +18,9 @@ const FirebaseContext = createContext<FirebaseContextProps>({
 });
 
 export const FirebaseProvider: React.FC<{
-  app: FirebaseApp;
-  firestore: Firestore;
-  auth: Auth;
+  app: FirebaseApp | null;
+  firestore: Firestore | null;
+  auth: Auth | null;
   children: React.ReactNode;
 }> = ({ app, firestore, auth, children }) => {
   return (

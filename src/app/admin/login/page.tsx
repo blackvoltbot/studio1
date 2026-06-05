@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { Shield, ChevronRight } from 'lucide-react';
+import { useAuth } from '@/firebase';
+import { Shield, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -17,9 +17,15 @@ export default function AdminLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const auth = useAuth();
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth) {
+      toast({ variant: "destructive", title: "Config Error", description: "Firebase is not configured." });
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
@@ -31,6 +37,19 @@ export default function AdminLoginPage() {
     }
     setIsLoading(false);
   };
+
+  if (!auth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <MatrixBackground />
+        <Card className="w-full max-w-md glass-card border-destructive/20 text-center p-8">
+          <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-headline text-destructive mb-2 uppercase tracking-widest">System Offline</h2>
+          <p className="text-xs text-muted-foreground font-code">Firebase credentials missing. Check environment variables.</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
