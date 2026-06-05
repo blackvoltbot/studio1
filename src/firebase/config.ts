@@ -15,11 +15,16 @@ export const firebaseConfig = {
 
 /**
  * Checks if the Firebase configuration is potentially valid.
+ * Also checks for common placeholder values that might pass length checks.
  */
 export const isFirebaseConfigValid = () => {
+  const key = firebaseConfig.apiKey;
   return (
-    !!firebaseConfig.apiKey && 
-    firebaseConfig.apiKey !== 'undefined' && 
-    firebaseConfig.apiKey.length > 10
+    !!key && 
+    key !== 'undefined' && 
+    key !== 'null' &&
+    key.length > 20 && // Firebase API keys are typically ~39 chars
+    !key.includes('YOUR_') &&
+    !key.includes('API_KEY')
   );
 };
