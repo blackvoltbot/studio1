@@ -2,7 +2,7 @@
 
 /**
  * Firebase configuration object.
- * Values are loaded from environment variables.
+ * Values are loaded from environment variables with hardcoded production fallbacks for BLACK DETAIL.
  */
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyB4Xb0uEh5obLhnqbJsVVuDEEoEtmw58Qk',

@@ -36,7 +36,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     if (!mounted || !db) return;
     if (settingsLoading) return;
 
-    // If settings doc doesn't exist, we'll stay in the login state but show the bootstrap UI
+    // If settings doc doesn't exist, we stay in the login state but show the bootstrap UI
     if (!settings) {
       setIsAuthenticated(false);
       return;
@@ -74,7 +74,6 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     if (settingsLoading) return;
 
     if (!settings) {
-      // This should be handled by the bootstrap UI, but as a fallback:
       toast({ 
         variant: "destructive", 
         title: "System Error", 
@@ -158,20 +157,20 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
           <CardContent className="space-y-6">
             <div className="bg-primary/5 border border-primary/20 p-4 rounded-md">
               <p className="text-[10px] font-code text-primary/80 leading-relaxed uppercase">
-                The global security document 'settings/global' is missing from the database. Initialization is required to establish the operational cipher.
+                The global security document 'settings/global' is missing. Initialization is required to establish the operational cipher and default credentials.
               </p>
             </div>
             <Button 
               onClick={handleBootstrap} 
               disabled={isVerifying} 
-              className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red h-12"
+              className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red h-12 transition-all duration-300"
             >
               {isVerifying ? "INITIATING..." : "INITIALIZE SECURITY CORE"}
             </Button>
           </CardContent>
           <div className="p-4 text-center border-t border-primary/10">
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-2">
-              <ShieldAlert className="w-3 h-3 text-primary" /> Setup protocol v2.0
+              <ShieldAlert className="w-3 h-3 text-primary" /> Setup protocol v2.1.0
             </p>
           </div>
         </Card>
