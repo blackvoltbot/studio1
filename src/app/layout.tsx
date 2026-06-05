@@ -1,12 +1,11 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase';
 
 export const metadata: Metadata = {
-  title: 'Number Intel | Intelligence Search',
-  description: 'Professional intelligence tool for number lookup and threat analysis.',
+  title: 'BLACK DETAIL | Operational Intelligence',
+  description: 'Secure operational environment for data lookup and analysis.',
 };
 
 export default function RootLayout({

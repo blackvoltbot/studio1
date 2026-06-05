@@ -27,7 +27,7 @@ export default function AdminLoginPage() {
       toast({ title: "Authorized", description: "Admin terminal access granted." });
       router.push('/admin/dashboard');
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Authentication Error", description: error.message });
+      toast({ variant: "destructive", title: "Auth Error", description: error.message });
     }
     setIsLoading(false);
   };
@@ -40,8 +40,8 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-md glass-card border-primary/20">
         <CardHeader className="text-center">
           <Shield className="w-12 h-12 text-primary mx-auto mb-4" />
-          <CardTitle className="text-2xl font-headline tracking-widest text-glow-red">ADMIN CONSOLE</CardTitle>
-          <p className="text-xs text-muted-foreground font-code uppercase tracking-widest mt-2">Restricted Operational Unit</p>
+          <CardTitle className="text-2xl font-headline tracking-widest text-glow-red">BLACK DETAIL ADMIN</CardTitle>
+          <p className="text-xs text-muted-foreground font-code uppercase tracking-widest mt-2">Restricted Access</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAdminLogin} className="space-y-4">
@@ -49,17 +49,17 @@ export default function AdminLoginPage() {
               <label className="text-[10px] font-code text-primary uppercase tracking-widest ml-1">Terminal ID</label>
               <Input
                 type="email"
-                placeholder="admin@number-intel.io"
+                placeholder="ID_SECURE"
                 className="bg-black/50 border-primary/20 text-primary font-code"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-code text-primary uppercase tracking-widest ml-1">Access Cipher</label>
+              <label className="text-[10px] font-code text-primary uppercase tracking-widest ml-1">Cipher</label>
               <Input
                 type="password"
-                placeholder="••••••••••••"
+                placeholder="••••••••"
                 className="bg-black/50 border-primary/20 text-primary font-code"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -70,12 +70,7 @@ export default function AdminLoginPage() {
               disabled={isLoading}
               className="w-full bg-primary hover:bg-primary/80 group transition-all"
             >
-              {isLoading ? "INITIATING..." : (
-                <span className="flex items-center gap-2 uppercase tracking-widest font-bold">
-                  ENGAGE TERMINAL
-                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </span>
-              )}
+              {isLoading ? "INITIATING..." : "ENGAGE TERMINAL"}
             </Button>
           </form>
         </CardContent>

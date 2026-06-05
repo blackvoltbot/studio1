@@ -43,7 +43,7 @@ export default function AdminDashboardPage() {
         websitePassword: newSitePassword
       });
       setCurrentSitePassword(newSitePassword);
-      toast({ title: "Configuration Updated", description: "Global site password has been modified." });
+      toast({ title: "Success", description: "Global cipher updated." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
     }
@@ -51,13 +51,13 @@ export default function AdminDashboardPage() {
   };
 
   const triggerForceLogout = async () => {
-    if (!confirm("Are you sure? This will immediately logout all current active user sessions.")) return;
+    if (!confirm("Confirm global session termination?")) return;
     setIsSaving(true);
     try {
       await updateDoc(doc(db, 'settings', 'global'), {
         forceLogoutVersion: increment(1)
       });
-      toast({ title: "Operation Successful", description: "Global session termination signal sent." });
+      toast({ title: "Executed", description: "All sessions invalidated." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
     }
@@ -83,8 +83,8 @@ export default function AdminDashboardPage() {
               <Settings className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-headline tracking-tighter text-glow-red">CORE SETTINGS</h1>
-              <p className="text-xs text-muted-foreground font-code uppercase tracking-widest">Global Administrative Override</p>
+              <h1 className="text-3xl font-headline tracking-tighter text-glow-red">BLACK DETAIL CONTROL</h1>
+              <p className="text-xs text-muted-foreground font-code uppercase tracking-widest">Administrative Override Unit</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={handleLogout} className="border-primary/20 hover:bg-primary/10 text-primary font-code">
@@ -96,13 +96,12 @@ export default function AdminDashboardPage() {
           <Card className="glass-card border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-primary font-headline tracking-widest">
-                <Lock className="w-5 h-5" /> SITE ACCESS KEY
+                <Lock className="w-5 h-5" /> ACCESS CIPHER
               </CardTitle>
-              <CardDescription className="text-muted-foreground">Change the global password required to enter the website.</CardDescription>
+              <CardDescription className="text-muted-foreground text-xs uppercase font-code">Modify global operational key.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-code text-muted-foreground uppercase tracking-widest">New Security Cipher</label>
                 <Input
                   className="bg-black/50 border-primary/20 text-primary font-code"
                   value={newSitePassword}
@@ -114,7 +113,7 @@ export default function AdminDashboardPage() {
                 disabled={isSaving || newSitePassword === currentSitePassword}
                 className="w-full bg-primary hover:bg-primary/80 font-bold"
               >
-                <Save className="w-4 h-4 mr-2" /> COMMIT CHANGES
+                <Save className="w-4 h-4 mr-2" /> COMMIT
               </Button>
             </CardContent>
           </Card>
@@ -122,34 +121,21 @@ export default function AdminDashboardPage() {
           <Card className="glass-card border-destructive/20 border-l-4 border-l-destructive">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-destructive font-headline tracking-widest">
-                <ShieldAlert className="w-5 h-5" /> FORCE LOGOUT
+                <ShieldAlert className="w-5 h-5" /> FORCE PURGE
               </CardTitle>
-              <CardDescription className="text-muted-foreground">Terminate all active user sessions across all devices globally.</CardDescription>
+              <CardDescription className="text-muted-foreground text-xs uppercase font-code">Terminate all global sessions.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 bg-destructive/5 rounded border border-destructive/10">
-                <p className="text-xs text-destructive/80 font-code italic">Warning: This action is immediate and cannot be reversed. Users will be redirected to the lock screen.</p>
-              </div>
               <Button 
                 variant="destructive"
                 onClick={triggerForceLogout} 
                 disabled={isSaving}
                 className="w-full bg-destructive hover:bg-destructive/80 font-bold pulse-red"
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${isSaving ? 'animate-spin' : ''}`} /> TRIGGER GLOBAL LOGOUT
+                <RefreshCw className={`w-4 h-4 mr-2 ${isSaving ? 'animate-spin' : ''}`} /> TRIGGER LOGOUT
               </Button>
             </CardContent>
           </Card>
-        </div>
-
-        <div className="p-6 bg-black/40 backdrop-blur-md rounded-xl border border-white/5">
-            <h3 className="text-xs font-headline text-muted-foreground/60 tracking-[0.2em] mb-4">SYSTEM STATUS LOGS</h3>
-            <div className="space-y-2 font-code text-[10px] uppercase">
-                <p className="text-emerald-500/60">[ OK ] FIREBASE CONNECTION ESTABLISHED</p>
-                <p className="text-emerald-500/60">[ OK ] GENKIT FLOWS INITIALIZED</p>
-                <p className="text-emerald-500/60">[ OK ] CLOUD FIRESTORE SYNCHRONIZED</p>
-                <p className="text-primary/60">[ !! ] ADMINISTRATIVE ACCESS GRANTED FROM {new Date().toLocaleDateString()}</p>
-            </div>
         </div>
       </div>
     </div>

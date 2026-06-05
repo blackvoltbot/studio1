@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -35,38 +34,25 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     const storedForceLogout = localStorage.getItem('force_logout_version');
     const currentForceLogout = settings.forceLogoutVersion || 0;
 
-    // Check for force logout trigger
     if (storedForceLogout && parseInt(storedForceLogout) < currentForceLogout) {
       localStorage.removeItem('site_auth_token');
       localStorage.removeItem('force_logout_version');
       setIsAuthenticated(false);
-      toast({
-        variant: "destructive",
-        title: "Session Expired",
-        description: "An administrator has forced a logout of all sessions."
-      });
       return;
     }
 
-    // Check if password changed and stored session is now invalid
     if (storedAuth && storedAuth !== settings.websitePassword) {
       localStorage.removeItem('site_auth_token');
       setIsAuthenticated(false);
-      toast({
-        variant: "destructive",
-        title: "Security Update",
-        description: "The global access password has been changed."
-      });
       return;
     }
 
-    // Regular session check
     if (storedAuth === settings.websitePassword) {
       setIsAuthenticated(true);
     } else {
       setIsAuthenticated(false);
     }
-  }, [settings, settingsLoading, toast]);
+  }, [settings, settingsLoading]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +65,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
       setIsAuthenticated(true);
       toast({
         title: "Access Granted",
-        description: "System authentication successful."
+        description: "Welcome to BLACK DETAIL."
       });
     } else {
       toast({
@@ -106,11 +92,8 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
         <Card className="w-full max-w-md glass-card border-primary/30 red-glow relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-primary/50 animate-pulse"></div>
           <CardHeader className="text-center space-y-2">
-            <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-2 border border-primary/20">
-              <Lock className="w-8 h-8 text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-bold tracking-tighter text-glow-red font-headline">IDENTITY VERIFICATION</CardTitle>
-            <CardDescription className="text-muted-foreground/80">Enter site access credentials to proceed.</CardDescription>
+            <CardTitle className="text-5xl font-bold tracking-tighter text-glow-red font-headline mb-4">BLACK DETAIL</CardTitle>
+            <CardDescription className="text-muted-foreground/80 font-code uppercase tracking-widest text-xs">Enter Access Cipher</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
@@ -126,13 +109,13 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
                 />
               </div>
               <Button type="submit" disabled={isVerifying} className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red transition-all duration-300">
-                {isVerifying ? "VERIFYING..." : "AUTHORIZE ACCESS"}
+                {isVerifying ? "VERIFYING..." : "INITIALIZE TERMINAL"}
               </Button>
             </form>
           </CardContent>
           <div className="p-4 text-center border-t border-primary/10">
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-2">
-              <ShieldAlert className="w-3 h-3 text-primary" /> System monitored for unauthorized activity
+              <ShieldAlert className="w-3 h-3 text-primary" /> Operational security protocol active
             </p>
           </div>
         </Card>

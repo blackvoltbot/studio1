@@ -1,4 +1,2 @@
-import { config } from 'dotenv';
-config();
-
-import '@/ai/flows/ai-result-analysis.ts';
+// Deprecated AI Initialization
+export const aiEnabled = false;
