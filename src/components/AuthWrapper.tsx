@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { doc } from 'firebase/firestore';
-import { ShieldAlert, Cpu, Lock } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { ShieldAlert, Cpu, Lock, Terminal, ShieldCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -36,7 +36,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     if (!mounted || !db) return;
     if (settingsLoading) return;
 
-    // If settings doc doesn't exist, we can't authenticate yet
+    // If settings doc doesn't exist, we'll stay in the login state but show the bootstrap UI
     if (!settings) {
       setIsAuthenticated(false);
       return;
@@ -74,10 +74,11 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     if (settingsLoading) return;
 
     if (!settings) {
+      // This should be handled by the bootstrap UI, but as a fallback:
       toast({ 
         variant: "destructive", 
-        title: "System Not Initialized", 
-        description: "The global security document 'settings/global' is missing from Firestore." 
+        title: "System Error", 
+        description: "Terminal initialization required." 
       });
       return;
     }
@@ -102,6 +103,28 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     setIsVerifying(false);
   };
 
+  const handleBootstrap = async () => {
+    if (!db) return;
+    setIsVerifying(true);
+    try {
+      await setDoc(doc(db, 'settings', 'global'), {
+        websitePassword: 'Admin123',
+        forceLogoutVersion: 1
+      });
+      toast({
+        title: "Success",
+        description: "Security core initialized. Default password: Admin123"
+      });
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Setup Failed",
+        description: e.message
+      });
+    }
+    setIsVerifying(false);
+  };
+
   if (!mounted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -114,6 +137,44 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Cpu className="w-12 h-12 text-primary animate-pulse" />
+      </div>
+    );
+  }
+
+  // BOOTSTRAP UI: If settings doc is missing
+  if (!settings && !settingsLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+        <div className="scanline"></div>
+        <Card className="w-full max-w-md glass-card border-primary/30 red-glow relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-primary/50 animate-pulse"></div>
+          <CardHeader className="text-center space-y-4">
+            <Terminal className="w-12 h-12 text-primary mx-auto" />
+            <CardTitle className="text-4xl font-bold tracking-tighter text-glow-red font-headline">BLACK DETAIL</CardTitle>
+            <CardDescription className="text-muted-foreground/80 font-code uppercase tracking-widest text-xs">
+              Operational Security Bootstrap Required
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="bg-primary/5 border border-primary/20 p-4 rounded-md">
+              <p className="text-[10px] font-code text-primary/80 leading-relaxed uppercase">
+                The global security document 'settings/global' is missing from the database. Initialization is required to establish the operational cipher.
+              </p>
+            </div>
+            <Button 
+              onClick={handleBootstrap} 
+              disabled={isVerifying} 
+              className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red h-12"
+            >
+              {isVerifying ? "INITIATING..." : "INITIALIZE SECURITY CORE"}
+            </Button>
+          </CardContent>
+          <div className="p-4 text-center border-t border-primary/10">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-2">
+              <ShieldAlert className="w-3 h-3 text-primary" /> Setup protocol v2.0
+            </p>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -143,14 +204,14 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
                   autoFocus
                 />
               </div>
-              <Button type="submit" disabled={isVerifying} className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red transition-all duration-300">
+              <Button type="submit" disabled={isVerifying} className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red transition-all duration-300 h-12">
                 {isVerifying ? "VERIFYING..." : "INITIALIZE TERMINAL"}
               </Button>
             </form>
           </CardContent>
           <div className="p-4 text-center border-t border-primary/10">
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-2">
-              <ShieldAlert className="w-3 h-3 text-primary" /> Operational security protocol active
+              <ShieldCheck className="w-3 h-3 text-primary" /> Operational security protocol active
             </p>
           </div>
         </Card>
