@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { doc } from 'firebase/firestore';
-import { ShieldAlert, Cpu, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, Cpu } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -63,7 +63,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settings) {
-      toast({ variant: "destructive", title: "System Error", description: "Operational parameters not found." });
+      toast({ variant: "destructive", title: "System Offline", description: "Operational parameters missing from database." });
       return;
     }
 
@@ -74,7 +74,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
       setIsAuthenticated(true);
       toast({
         title: "Access Granted",
-        description: "Welcome to BLACK DETAIL."
+        description: "Welcome to BLACK DETAIL intelligence core."
       });
     } else {
       toast({
@@ -86,27 +86,10 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     setIsVerifying(false);
   };
 
-  // Prevent hydration mismatch by rendering a consistent loading state
   if (!mounted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Cpu className="w-12 h-12 text-primary animate-pulse" />
-      </div>
-    );
-  }
-
-  // Only show the configuration error after mounting on the client
-  if (db === null) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md glass-card border-destructive/20 text-center p-8">
-          <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-headline text-destructive mb-2 uppercase tracking-widest">Config Error</h2>
-          <p className="text-xs text-muted-foreground font-code mb-6">Firebase environment variables are missing or invalid.</p>
-          <Button variant="outline" className="w-full font-code text-[10px]" onClick={() => window.location.reload()}>
-            RETRY INITIALIZATION
-          </Button>
-        </Card>
       </div>
     );
   }
