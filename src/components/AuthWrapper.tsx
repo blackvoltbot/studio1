@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { doc } from 'firebase/firestore';
-import { ShieldAlert, Cpu } from 'lucide-react';
+import { ShieldAlert, Cpu, Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -34,12 +34,19 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
 
   useEffect(() => {
     if (!mounted || !db) return;
-    if (settingsLoading || !settings) return;
+    if (settingsLoading) return;
+
+    // If settings doc doesn't exist, we can't authenticate yet
+    if (!settings) {
+      setIsAuthenticated(false);
+      return;
+    }
 
     const storedAuth = localStorage.getItem('site_auth_token');
     const storedForceLogout = localStorage.getItem('force_logout_version');
     const currentForceLogout = settings.forceLogoutVersion || 0;
 
+    // Handle force logout
     if (storedForceLogout && parseInt(storedForceLogout) < currentForceLogout) {
       localStorage.removeItem('site_auth_token');
       localStorage.removeItem('force_logout_version');
@@ -47,6 +54,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
       return;
     }
 
+    // Verify stored token against current password
     if (storedAuth && storedAuth !== settings.websitePassword) {
       localStorage.removeItem('site_auth_token');
       setIsAuthenticated(false);
@@ -62,12 +70,20 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (settingsLoading) return;
+
     if (!settings) {
-      toast({ variant: "destructive", title: "System Offline", description: "Operational parameters missing from database." });
+      toast({ 
+        variant: "destructive", 
+        title: "System Not Initialized", 
+        description: "The global security document 'settings/global' is missing from Firestore." 
+      });
       return;
     }
 
     setIsVerifying(true);
+    
     if (passwordInput === settings.websitePassword) {
       localStorage.setItem('site_auth_token', settings.websitePassword);
       localStorage.setItem('force_logout_version', (settings.forceLogoutVersion || 0).toString());
@@ -110,15 +126,17 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
           <div className="absolute top-0 left-0 w-full h-1 bg-primary/50 animate-pulse"></div>
           <CardHeader className="text-center space-y-2">
             <CardTitle className="text-5xl font-bold tracking-tighter text-glow-red font-headline mb-4">BLACK DETAIL</CardTitle>
-            <CardDescription className="text-muted-foreground/80 font-code uppercase tracking-widest text-xs">Enter Access Cipher</CardDescription>
+            <CardDescription className="text-muted-foreground/80 font-code uppercase tracking-widest text-xs flex items-center justify-center gap-2">
+              <Lock className="w-3 h-3 text-primary" /> Enter Website Password
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Input
                   type="password"
-                  placeholder="SECURITY_KEY_ID"
-                  className="bg-black/50 border-primary/20 text-center text-primary font-code focus:border-primary/50"
+                  placeholder="Enter Website Password"
+                  className="bg-black/50 border-primary/20 text-center text-primary font-code focus:border-primary/50 placeholder:text-primary/20"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
                   disabled={isVerifying}
