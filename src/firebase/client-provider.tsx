@@ -1,15 +1,30 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { initializeFirebase, FirebaseProvider } from './index';
+import { FirebaseApp } from 'firebase/app';
+import { Firestore } from 'firebase/firestore';
+import { Auth } from 'firebase/auth';
 
 export const FirebaseClientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { app, firestore, auth } = useMemo(() => initializeFirebase(), []);
+  const [instances, setInstances] = useState<{
+    app: FirebaseApp | null;
+    firestore: Firestore | null;
+    auth: Auth | null;
+  }>({ app: null, firestore: null, auth: null });
 
-  // We always render children so the app doesn't go blank if Firebase is missing.
-  // The FirebaseProvider will just pass null context values.
+  useEffect(() => {
+    // Only initialize on the client after mounting to ensure hydration consistency
+    const initialized = initializeFirebase();
+    setInstances(initialized);
+  }, []);
+
   return (
-    <FirebaseProvider app={app} firestore={firestore} auth={auth}>
+    <FirebaseProvider 
+      app={instances.app} 
+      firestore={instances.firestore} 
+      auth={instances.auth}
+    >
       {children}
     </FirebaseProvider>
   );

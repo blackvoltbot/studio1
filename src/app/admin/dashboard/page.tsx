@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { Settings, Lock, LogOut, ShieldAlert, Save, RefreshCw } from 'lucide-react';
+import { Settings, Lock, LogOut, ShieldAlert, Save, RefreshCw, Cpu } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { MatrixBackground } from '@/components/MatrixBackground';
 
 export default function AdminDashboardPage() {
+  const [mounted, setMounted] = useState(false);
   const [newSitePassword, setNewSitePassword] = useState('');
   const [currentSitePassword, setCurrentSitePassword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +25,11 @@ export default function AdminDashboardPage() {
   const db = useFirestore();
 
   useEffect(() => {
-    if (!auth || !db) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || !auth || !db) return;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -39,7 +44,7 @@ export default function AdminDashboardPage() {
       }
     });
     return () => unsubscribe();
-  }, [router, auth, db]);
+  }, [router, auth, db, mounted]);
 
   const updatePassword = async () => {
     if (!db) return;
@@ -77,9 +82,9 @@ export default function AdminDashboardPage() {
     router.push('/admin/login');
   };
 
-  if (isLoading) return (
+  if (!mounted || isLoading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+      <Cpu className="w-8 h-8 text-primary animate-pulse" />
     </div>
   );
 

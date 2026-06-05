@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { doc } from 'firebase/firestore';
-import { Lock, ShieldAlert, Cpu, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, Cpu, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -14,11 +14,16 @@ interface AuthWrapperProps {
 }
 
 export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
+  const [mounted, setMounted] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
   const db = useFirestore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const settingsRef = useMemo(() => {
     if (!db) return null;
@@ -28,12 +33,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
   const { data: settings, loading: settingsLoading } = useDoc(settingsRef);
 
   useEffect(() => {
-    // If Firebase isn't initialized, we can't check auth.
-    if (db === null) {
-      setIsAuthenticated(false);
-      return;
-    }
-
+    if (!mounted || !db) return;
     if (settingsLoading || !settings) return;
 
     const storedAuth = localStorage.getItem('site_auth_token');
@@ -58,7 +58,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     } else {
       setIsAuthenticated(false);
     }
-  }, [settings, settingsLoading, db]);
+  }, [settings, settingsLoading, db, mounted]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +86,16 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     setIsVerifying(false);
   };
 
-  // If Firebase is null, show a configuration error instead of hanging.
+  // Prevent hydration mismatch by rendering a consistent loading state
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Cpu className="w-12 h-12 text-primary animate-pulse" />
+      </div>
+    );
+  }
+
+  // Only show the configuration error after mounting on the client
   if (db === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">

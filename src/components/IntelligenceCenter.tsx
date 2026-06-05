@@ -16,6 +16,7 @@ interface SearchRecord {
 }
 
 export const IntelligenceCenter: React.FC = () => {
+  const [mounted, setMounted] = useState(false);
   const [number, setNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [history, setHistory] = useState<SearchRecord[]>([]);
@@ -23,6 +24,7 @@ export const IntelligenceCenter: React.FC = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    setMounted(true);
     const saved = localStorage.getItem('black_detail_history');
     if (saved) {
       try {
@@ -36,7 +38,9 @@ export const IntelligenceCenter: React.FC = () => {
   const saveToHistory = (record: SearchRecord) => {
     const updated = [record, ...history.filter(h => h.number !== record.number)].slice(0, 50);
     setHistory(updated);
-    localStorage.setItem('black_detail_history', JSON.stringify(updated));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('black_detail_history', JSON.stringify(updated));
+    }
   };
 
   const handleLookup = async (e?: React.FormEvent) => {
@@ -71,14 +75,21 @@ export const IntelligenceCenter: React.FC = () => {
 
   const clearHistory = () => {
     setHistory([]);
-    localStorage.removeItem('black_detail_history');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('black_detail_history');
+    }
     toast({ title: "Logs Cleared", description: "Search history purged." });
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "Copied", description: "Data copied to clipboard." });
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      toast({ title: "Copied", description: "Data copied to clipboard." });
+    }
   };
+
+  // Ensure initial render matches server render
+  if (!mounted) return null;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

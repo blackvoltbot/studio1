@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from '@/firebase';
-import { Shield, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Shield, AlertTriangle, Cpu } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -12,12 +12,17 @@ import { useRouter } from 'next/navigation';
 import { MatrixBackground } from '@/components/MatrixBackground';
 
 export default function AdminLoginPage() {
+  const [mounted, setMounted] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   const auth = useAuth();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +42,14 @@ export default function AdminLoginPage() {
     }
     setIsLoading(false);
   };
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Cpu className="w-12 h-12 text-primary animate-pulse" />
+      </div>
+    );
+  }
 
   if (!auth) {
     return (
