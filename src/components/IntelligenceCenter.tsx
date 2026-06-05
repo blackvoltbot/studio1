@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, History, Trash2, Copy, Fingerprint, Database, FileText } from 'lucide-react';
+import { Search, History, Trash2, Copy, Fingerprint, Database, FileText, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -46,7 +46,11 @@ export const IntelligenceCenter: React.FC = () => {
   const handleLookup = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!number || number.length < 5) {
-      toast({ variant: "destructive", title: "Invalid Target", description: "Please enter a valid mobile number." });
+      toast({ 
+        variant: "destructive", 
+        title: "Invalid Target", 
+        description: "Please enter a valid mobile number for scanning." 
+      });
       return;
     }
 
@@ -65,9 +69,16 @@ export const IntelligenceCenter: React.FC = () => {
 
       setCurrentResult(newRecord);
       saveToHistory(newRecord);
-      toast({ title: "Lookup Successful", description: `Data retrieved for ${number}.` });
+      toast({ 
+        title: "Lookup Successful", 
+        description: `Intelligence retrieved for ${number}.` 
+      });
     } else {
-      toast({ variant: "destructive", title: "Lookup Failed", description: result.error || "Connection error." });
+      toast({ 
+        variant: "destructive", 
+        title: "Intelligence Link Failed", 
+        description: result.error || "Operational timeout or provider error." 
+      });
     }
 
     setIsSearching(false);
@@ -78,17 +89,16 @@ export const IntelligenceCenter: React.FC = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('black_detail_history');
     }
-    toast({ title: "Logs Cleared", description: "Search history purged." });
+    toast({ title: "Logs Cleared", description: "Operational logs purged." });
   };
 
   const copyToClipboard = (text: string) => {
     if (typeof window !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(text);
-      toast({ title: "Copied", description: "Data copied to clipboard." });
+      toast({ title: "Copied", description: "Intelligence data moved to clipboard." });
     }
   };
 
-  // Ensure initial render matches server render
   if (!mounted) return null;
 
   return (
@@ -98,24 +108,24 @@ export const IntelligenceCenter: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red">
               <Fingerprint className="w-5 h-5 text-primary" />
-              MOBILE INTELLIGENCE SEARCH
+              MOBILE INTELLIGENCE SCANNER
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Input
-                  placeholder="TARGET_PHONE_NUMBER"
-                  className="bg-black/40 border-primary/30 text-primary font-code focus:border-primary pl-10"
+                  placeholder="SCAN_TARGET_PHONE"
+                  className="bg-black/40 border-primary/30 text-primary font-code focus:border-primary pl-10 h-12"
                   value={number}
                   onChange={(e) => setNumber(e.target.value)}
                 />
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-primary/60" />
+                <Search className="absolute left-3 top-4 w-4 h-4 text-primary/60" />
               </div>
               <Button 
                 type="submit" 
                 disabled={isSearching}
-                className="bg-primary hover:bg-primary/80 min-w-[140px] pulse-red transition-all"
+                className="bg-primary hover:bg-primary/80 min-w-[140px] pulse-red transition-all h-12 font-bold uppercase tracking-widest"
               >
                 {isSearching ? "SCANNING..." : "SEARCH"}
               </Button>
@@ -129,14 +139,19 @@ export const IntelligenceCenter: React.FC = () => {
                 <div className="bg-primary/5 px-6 py-3 border-b border-primary/10 flex items-center justify-between">
                     <h3 className="text-sm font-headline tracking-widest text-primary flex items-center gap-2">
                         <Database className="w-4 h-4" />
-                        RETRIEVED DATA
+                        RETRIEVED DATA CORE
                     </h3>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => copyToClipboard(JSON.stringify(currentResult.data, null, 2))}>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-primary hover:bg-primary/10" 
+                      onClick={() => copyToClipboard(JSON.stringify(currentResult.data, null, 2))}
+                    >
                         <Copy className="w-4 h-4" />
                     </Button>
                 </div>
                 <CardContent className="p-0">
-                    <pre className="p-6 overflow-auto max-h-[500px] text-xs font-code text-primary/80 bg-black/40 scrollbar-thin scrollbar-thumb-primary/20">
+                    <pre className="p-6 overflow-auto max-h-[500px] text-xs font-code text-primary/80 bg-black/40 scrollbar-thin scrollbar-thumb-primary/20 leading-relaxed">
                         {JSON.stringify(currentResult.data, null, 2)}
                     </pre>
                 </CardContent>
@@ -150,10 +165,15 @@ export const IntelligenceCenter: React.FC = () => {
           <CardHeader className="flex flex-row items-center justify-between py-4">
             <CardTitle className="flex items-center gap-2 text-sm font-headline tracking-widest text-primary">
               <History className="w-4 h-4" />
-              SEARCH HISTORY
+              OPERATIONAL LOGS
             </CardTitle>
             {history.length > 0 && (
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={clearHistory}>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-muted-foreground hover:text-primary" 
+                onClick={clearHistory}
+              >
                 <Trash2 className="w-4 h-4" />
               </Button>
             )}
@@ -162,7 +182,7 @@ export const IntelligenceCenter: React.FC = () => {
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
                 <FileText className="w-12 h-12 mb-2" />
-                <p className="text-xs font-code uppercase tracking-tighter">No logs found</p>
+                <p className="text-xs font-code uppercase tracking-tighter">No active logs</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -172,7 +192,7 @@ export const IntelligenceCenter: React.FC = () => {
                     onClick={() => setCurrentResult(record)}
                     className={`w-full text-left p-3 rounded-md border transition-all flex items-center justify-between group ${
                       currentResult?.id === record.id 
-                        ? 'bg-primary/10 border-primary/40' 
+                        ? 'bg-primary/10 border-primary/40 shadow-[0_0_10px_rgba(255,0,0,0.1)]' 
                         : 'bg-white/5 border-white/10 hover:border-primary/30 hover:bg-white/10'
                     }`}
                   >
