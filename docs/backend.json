@@ -1,0 +1,30 @@
+
+{
+  "entities": {
+    "GlobalSettings": {
+      "title": "Global Settings",
+      "description": "Global application configuration including site password and session management.",
+      "type": "object",
+      "properties": {
+        "websitePassword": {
+          "type": "string",
+          "description": "The global password required to access the site."
+        },
+        "forceLogoutVersion": {
+          "type": "number",
+          "description": "Counter used to invalidate all active sessions."
+        }
+      },
+      "required": ["websitePassword"]
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/settings/global": {
+      "schema": "GlobalSettings",
+      "description": "Singleton document for global application settings."
+    }
+  }
+}
