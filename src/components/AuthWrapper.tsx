@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
-import { ShieldAlert, Cpu, Lock, Terminal, ShieldCheck } from 'lucide-react';
+import { ShieldAlert, Cpu, Lock, Terminal, ShieldCheck, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -30,57 +30,49 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     return doc(db, 'settings', 'global');
   }, [db]);
 
-  const { data: settings, loading: settingsLoading } = useDoc(settingsRef);
+  const { data: settings, loading: settingsLoading, error: settingsError } = useDoc(settingsRef);
 
   useEffect(() => {
-    if (!mounted || !db) return;
-    if (settingsLoading) return;
+    if (!mounted || !db || settingsLoading) return;
 
-    // If settings doc doesn't exist, we stay in the login state but show the bootstrap UI
-    if (!settings) {
-      setIsAuthenticated(false);
-      return;
-    }
+    // Handle authentication logic only when settings data is available
+    if (settings) {
+      const storedAuth = localStorage.getItem('site_auth_token');
+      const storedForceLogout = localStorage.getItem('force_logout_version');
+      const currentForceLogout = settings.forceLogoutVersion || 0;
 
-    const storedAuth = localStorage.getItem('site_auth_token');
-    const storedForceLogout = localStorage.getItem('force_logout_version');
-    const currentForceLogout = settings.forceLogoutVersion || 0;
+      // Handle force logout scenario
+      if (storedForceLogout && parseInt(storedForceLogout) < currentForceLogout) {
+        localStorage.removeItem('site_auth_token');
+        localStorage.removeItem('force_logout_version');
+        setIsAuthenticated(false);
+        return;
+      }
 
-    // Handle force logout
-    if (storedForceLogout && parseInt(storedForceLogout) < currentForceLogout) {
-      localStorage.removeItem('site_auth_token');
-      localStorage.removeItem('force_logout_version');
-      setIsAuthenticated(false);
-      return;
-    }
+      // Verify stored token against current password
+      if (storedAuth && storedAuth !== settings.websitePassword) {
+        localStorage.removeItem('site_auth_token');
+        setIsAuthenticated(false);
+        return;
+      }
 
-    // Verify stored token against current password
-    if (storedAuth && storedAuth !== settings.websitePassword) {
-      localStorage.removeItem('site_auth_token');
-      setIsAuthenticated(false);
-      return;
-    }
-
-    if (storedAuth === settings.websitePassword) {
-      setIsAuthenticated(true);
+      if (storedAuth === settings.websitePassword) {
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+      }
     } else {
-      setIsAuthenticated(false);
+      // If we are not loading, have no error, but also have no data, it's actually missing
+      if (!settingsError) {
+        setIsAuthenticated(false);
+      }
     }
-  }, [settings, settingsLoading, db, mounted]);
+  }, [settings, settingsLoading, settingsError, db, mounted]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (settingsLoading) return;
-
-    if (!settings) {
-      toast({ 
-        variant: "destructive", 
-        title: "System Error", 
-        description: "Terminal initialization required." 
-      });
-      return;
-    }
+    if (settingsLoading || !settings) return;
 
     setIsVerifying(true);
     
@@ -124,6 +116,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     setIsVerifying(false);
   };
 
+  // 1. Initial mounting check
   if (!mounted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -132,16 +125,44 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     );
   }
 
-  if (settingsLoading && isAuthenticated === null) {
+  // 2. Wait for DB and settings to load
+  if (settingsLoading || (db && !settings && !settingsError && isAuthenticated === null)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Cpu className="w-12 h-12 text-primary animate-pulse" />
+        <div className="relative">
+          <Cpu className="w-12 h-12 text-primary animate-pulse" />
+          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+            <p className="text-[10px] font-code text-primary/50 uppercase tracking-[0.2em]">Synchronizing Core...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
-  // BOOTSTRAP UI: If settings doc is missing
-  if (!settings && !settingsLoading) {
+  // 3. Handle persistent errors (e.g., permissions or network)
+  if (settingsError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md glass-card border-destructive/30">
+          <CardHeader className="text-center">
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <CardTitle className="text-destructive font-headline tracking-widest uppercase">Connection Error</CardTitle>
+            <CardDescription className="text-muted-foreground font-code text-xs">
+              {settingsError.message || "Failed to establish a secure link to the security core."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => window.location.reload()} className="w-full bg-destructive/20 hover:bg-destructive/30 text-destructive border border-destructive/30">
+              RETRY CONNECTION
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // 4. BOOTSTRAP UI: Only if doc is explicitly missing after loading finished
+  if (!settings && !settingsLoading && !settingsError && db) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
         <div className="scanline"></div>
@@ -151,33 +172,29 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
             <Terminal className="w-12 h-12 text-primary mx-auto" />
             <CardTitle className="text-4xl font-bold tracking-tighter text-glow-red font-headline">BLACK DETAIL</CardTitle>
             <CardDescription className="text-muted-foreground/80 font-code uppercase tracking-widest text-xs">
-              Operational Security Bootstrap Required
+              Security Protocol Initialization Required
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="bg-primary/5 border border-primary/20 p-4 rounded-md">
               <p className="text-[10px] font-code text-primary/80 leading-relaxed uppercase">
-                The global security document 'settings/global' is missing. Initialization is required to establish the operational cipher and default credentials.
+                The global security document 'settings/global' was not detected. Manual initialization is required to establish the operational cipher.
               </p>
             </div>
             <Button 
               onClick={handleBootstrap} 
               disabled={isVerifying} 
-              className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red h-12 transition-all duration-300"
+              className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red h-12"
             >
               {isVerifying ? "INITIATING..." : "INITIALIZE SECURITY CORE"}
             </Button>
           </CardContent>
-          <div className="p-4 text-center border-t border-primary/10">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-2">
-              <ShieldAlert className="w-3 h-3 text-primary" /> Setup protocol v2.1.0
-            </p>
-          </div>
         </Card>
       </div>
     );
   }
 
+  // 5. LOGIN UI
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
@@ -203,7 +220,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
                   autoFocus
                 />
               </div>
-              <Button type="submit" disabled={isVerifying} className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red transition-all duration-300 h-12">
+              <Button type="submit" disabled={isVerifying} className="w-full bg-primary hover:bg-primary/80 text-white font-bold tracking-widest pulse-red h-12">
                 {isVerifying ? "VERIFYING..." : "INITIALIZE TERMINAL"}
               </Button>
             </form>
