@@ -75,8 +75,6 @@ export const IntelligenceCenter: React.FC = () => {
 
   const { data: userData } = useDoc(userRef);
 
-  // Real-time listener for the user's latest transaction to show status
-  // Anchoring UI visibility to Firestore record ensures persistence across refreshes
   const txQuery = useMemo(() => {
     if (!db || !userPhone) return null;
     return query(
@@ -90,20 +88,16 @@ export const IntelligenceCenter: React.FC = () => {
   const { data: latestTx } = useCollection(txQuery);
   const activeTx = latestTx?.[0];
 
-  // Logic to determine if QR should be visible
-  // QR stays visible if status is pending, or if it was recently processed (within 5 minutes)
   const showQrSection = useMemo(() => {
-    if (isSubmittingTx) return true;
     if (!activeTx) return false;
     
     if (activeTx.status === 'pending') return true;
     
-    // Show approved/declined status for 5 minutes after processing
     const FIVE_MINUTES = 5 * 60 * 1000;
     const isRecent = activeTx.processedAt && (Date.now() - activeTx.processedAt < FIVE_MINUTES);
     
     return isRecent;
-  }, [activeTx, isSubmittingTx]);
+  }, [activeTx]);
 
   const currentCoins = userData?.coins || 0;
   const trialUsed = userData?.trialUsed || false;
@@ -187,7 +181,6 @@ export const IntelligenceCenter: React.FC = () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-6">
         
-        {/* Coin Balance & Wallet */}
         <Card className="glass-card border-primary/20 overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
@@ -245,55 +238,56 @@ export const IntelligenceCenter: React.FC = () => {
               </div>
             )}
 
-            {showQrSection && (
+            {showQrSection && activeTx && (
               <div className="flex flex-col items-center justify-center p-8 bg-primary/5 rounded-2xl border border-primary/10 relative animate-in fade-in zoom-in duration-500">
                 <div className="absolute top-0 right-0 p-4 opacity-5">
                   <QrCode className="w-16 h-16 text-primary" />
                 </div>
                 
-                <img 
-                  src="https://i.ibb.co/W4ZwkjYy/f1421dab-de96-46fe-bbb9-c66202f3fe1e.jpg"
-                  alt="Payment QR"
-                  width="200"
-                  height="200"
-                  className="rounded-lg shadow-[0_0_30px_rgba(242,13,13,0.3)] mb-6 border-2 border-primary/20"
-                  data-ai-hint="payment qr"
-                />
+                {activeTx.status === 'pending' && (
+                  <img 
+                    src="https://i.ibb.co/W4ZwkjYy/f1421dab-de96-46fe-bbb9-c66202f3fe1e.jpg"
+                    alt="Payment QR"
+                    width="200"
+                    height="200"
+                    className="rounded-lg shadow-[0_0_30px_rgba(242,13,13,0.3)] mb-6 border-2 border-primary/20"
+                    data-ai-hint="payment qr"
+                  />
+                )}
                 
                 <div className="space-y-4 w-full max-w-[300px]">
-                  {/* Real-time Status Area */}
                   <div className="p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(242,13,13,0.2)] flex flex-col items-center gap-1">
-                    {(activeTx && activeTx.status === 'pending') || isSubmittingTx ? (
+                    {activeTx.status === 'pending' ? (
                       <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
                         Waiting for Admin Approval
                       </p>
-                    ) : activeTx && activeTx.status === 'approved' ? (
+                    ) : activeTx.status === 'approved' ? (
                       <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
                         Approved - {activeTx.coins} Coins Added
                       </p>
-                    ) : activeTx && activeTx.status === 'declined' ? (
+                    ) : activeTx.status === 'declined' ? (
                       <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
                         Declined - Try Again
                       </p>
                     ) : null}
                   </div>
 
-                  {/* Warning Labels Popup-style */}
-                  <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] backdrop-blur-md flex flex-col items-center gap-2">
-                    <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
-                      Fake Payment Not Allowed
-                    </p>
-                    <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
-                      नकली पेमेंट मान्य नहीं है
-                    </p>
-                  </div>
+                  {activeTx.status === 'pending' && (
+                    <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] backdrop-blur-md flex flex-col items-center gap-2">
+                      <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                        Fake Payment Not Allowed
+                      </p>
+                      <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                        नकली पेमेंट मान्य नहीं है
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Intel Scanner */}
         <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-50 grayscale' : 'red-glow-hover'}`}>
           <CardHeader>
             <div className="flex items-center justify-between">
