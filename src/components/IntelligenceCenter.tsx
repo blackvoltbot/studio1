@@ -63,9 +63,26 @@ export const IntelligenceCenter: React.FC = () => {
     return doc(db, 'payment_requests', activeRequestId);
   }, [db, activeRequestId]);
 
-  const { data: requestData } = useDoc(requestRef);
+  const { data: requestData, loading: requestLoading } = useDoc(requestRef);
 
+  // Computed Search State
   const canSearch = requestData?.status === 'APPROVED';
+
+  // Watch for approval changes to show toast
+  useEffect(() => {
+    if (requestData?.status === 'APPROVED') {
+      toast({
+        title: "PAYMENT APPROVED",
+        description: "Search access granted. Proceed with intelligence scan.",
+      });
+    } else if (requestData?.status === 'DECLINED') {
+      toast({
+        variant: "destructive",
+        title: "PAYMENT DECLINED",
+        description: "Access denied by administrative command.",
+      });
+    }
+  }, [requestData?.status, toast]);
 
   const handlePaidClick = async () => {
     setIsPaying(true);
@@ -79,7 +96,7 @@ export const IntelligenceCenter: React.FC = () => {
       
       toast({
         title: "Request Sent",
-        description: "Admin has been notified. Please wait for approval."
+        description: "Admin terminal notified. Awaiting core approval."
       });
     } catch (e: any) {
       toast({
@@ -95,53 +112,57 @@ export const IntelligenceCenter: React.FC = () => {
   const handleLookup = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!canSearch || !activeRequestId) {
-      toast({ variant: "destructive", title: "Access Denied", description: "Payment approval required." });
+      toast({ variant: "destructive", title: "Access Denied", description: "Authorization required." });
       return;
     }
     if (!number || number.length < 5) {
-      toast({ variant: "destructive", title: "Invalid Target", description: "Please enter a valid mobile number." });
+      toast({ variant: "destructive", title: "Invalid Target", description: "Enter a valid scan target." });
       return;
     }
 
     setIsSearching(true);
     setCurrentResult(null);
 
-    const result = await performLookup(number, activeRequestId);
+    try {
+      const result = await performLookup(number, activeRequestId);
 
-    if (result.success) {
-      const newRecord: SearchRecord = {
-        id: crypto.randomUUID(),
-        number,
-        timestamp: Date.now(),
-        data: result.data,
-      };
+      if (result.success) {
+        const newRecord: SearchRecord = {
+          id: crypto.randomUUID(),
+          number,
+          timestamp: Date.now(),
+          data: result.data,
+        };
 
-      setCurrentResult(newRecord);
-      
-      // Update local history
-      setHistory(prevHistory => {
-        const updated = [newRecord, ...prevHistory.filter(h => h.number !== newRecord.number)].slice(0, 50);
-        localStorage.setItem('black_detail_history', JSON.stringify(updated));
-        return updated;
-      });
+        setCurrentResult(newRecord);
+        
+        // Update local history
+        setHistory(prevHistory => {
+          const updated = [newRecord, ...prevHistory.filter(h => h.number !== newRecord.number)].slice(0, 50);
+          localStorage.setItem('black_detail_history', JSON.stringify(updated));
+          return updated;
+        });
 
-      // Reset payment state since it's USED
-      setActiveRequestId(null);
-      localStorage.removeItem('bd_active_request');
+        // Reset payment state locally immediately
+        setActiveRequestId(null);
+        localStorage.removeItem('bd_active_request');
 
-      toast({ 
-        title: "Lookup Successful", 
-        description: `Intelligence retrieved. Search credit used.` 
-      });
-    } else {
-      toast({ 
-        variant: "destructive", 
-        title: "Search Failed", 
-        description: result.error || "Operational timeout." 
-      });
+        toast({ 
+          title: "Lookup Successful", 
+          description: `Intelligence retrieved. Credit invalidated.` 
+        });
+      } else {
+        toast({ 
+          variant: "destructive", 
+          title: "Search Failed", 
+          description: result.error || "Operational timeout." 
+        });
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Core Error", description: err.message });
+    } finally {
+      setIsSearching(false);
     }
-
-    setIsSearching(false);
   };
 
   const clearHistory = () => {
@@ -167,7 +188,7 @@ export const IntelligenceCenter: React.FC = () => {
             <QrCode className="w-24 h-24 text-primary" />
           </div>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red">
+            <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
               <Database className="w-5 h-5 text-primary" />
               OPERATIONAL ACCESS CONTROL
             </CardTitle>
@@ -186,8 +207,8 @@ export const IntelligenceCenter: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1">
-              <p className="text-xl font-bold tracking-widest text-primary">Pay ₹5 To Search</p>
-              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em]">Scannable UPI Identity Link</p>
+              <p className="text-xl font-bold tracking-widest text-primary uppercase">Pay ₹5 To Search</p>
+              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em]">UPI Identity Authentication Required</p>
             </div>
 
             <div className="w-full max-w-sm space-y-4">
@@ -197,15 +218,16 @@ export const IntelligenceCenter: React.FC = () => {
                   disabled={isPaying}
                   className="w-full bg-primary hover:bg-primary/80 font-bold tracking-widest h-12 shadow-[0_0_20px_rgba(255,0,0,0.2)]"
                 >
-                  {isPaying ? "PROCESSING..." : "✅ I'VE PAID"}
+                  {isPaying ? "INITIALIZING REQUEST..." : "✅ I'VE PAID"}
                 </Button>
               )}
 
               {requestData?.status === 'WAITING_APPROVAL' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg animate-pulse">
                   <Clock className="w-6 h-6 text-primary" />
-                  <p className="text-sm font-headline tracking-widest text-primary uppercase">Waiting For Admin Approval</p>
+                  <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold">Waiting For Admin Approval</p>
                   <p className="text-[10px] text-muted-foreground font-code">REQ_ID: {activeRequestId?.slice(0, 8)}</p>
+                  <p className="text-[9px] text-muted-foreground font-code italic">Checking core status in real-time...</p>
                 </div>
               )}
 
@@ -213,20 +235,20 @@ export const IntelligenceCenter: React.FC = () => {
                 <div className="flex flex-col items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.1)]">
                   <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                   <p className="text-sm font-headline tracking-widest text-emerald-500 uppercase font-bold">Approved</p>
-                  <p className="text-[10px] text-emerald-500/60 font-code">Access granted for single lookup</p>
+                  <p className="text-[10px] text-emerald-500/60 font-code">Authorization granted for single lookup</p>
                 </div>
               )}
 
               {requestData?.status === 'DECLINED' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
                   <XCircle className="w-6 h-6 text-destructive" />
-                  <p className="text-sm font-headline tracking-widest text-destructive uppercase">Declined</p>
+                  <p className="text-sm font-headline tracking-widest text-destructive uppercase font-bold">Request Declined</p>
                   <Button 
                     variant="link" 
                     className="text-[10px] text-destructive/60 font-code uppercase"
                     onClick={() => { setActiveRequestId(null); localStorage.removeItem('bd_active_request'); }}
                   >
-                    Try New Payment
+                    Generate New Payment
                   </Button>
                 </div>
               )}
@@ -237,7 +259,7 @@ export const IntelligenceCenter: React.FC = () => {
         {/* Search Scanner */}
         <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-40 grayscale pointer-events-none' : 'red-glow-hover'}`}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red">
+            <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
               <Fingerprint className="w-5 h-5 text-primary" />
               MOBILE INTELLIGENCE SCANNER
             </CardTitle>
@@ -257,14 +279,14 @@ export const IntelligenceCenter: React.FC = () => {
               <Button 
                 type="submit" 
                 disabled={!canSearch || isSearching}
-                className={`bg-primary hover:bg-primary/80 min-w-[140px] transition-all h-12 font-bold uppercase tracking-widest ${canSearch ? 'pulse-red' : ''}`}
+                className={`bg-primary hover:bg-primary/80 min-w-[140px] transition-all h-12 font-bold uppercase tracking-widest ${canSearch ? 'pulse-red shadow-[0_0_15px_rgba(255,0,0,0.3)]' : ''}`}
               >
-                {isSearching ? "SCANNING..." : "SEARCH"}
+                {isSearching ? "SCANNING..." : "ENGAGE SEARCH"}
               </Button>
             </form>
             {!canSearch && (
               <p className="text-[10px] text-muted-foreground font-code mt-4 text-center uppercase tracking-widest opacity-60">
-                Unlock required: scanned verification pending payment
+                LOCKED: Authorization sequence pending administrative approval
               </p>
             )}
           </CardContent>
@@ -274,7 +296,7 @@ export const IntelligenceCenter: React.FC = () => {
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Card className="glass-card border-primary/20 overflow-hidden">
                 <div className="bg-primary/5 px-6 py-3 border-b border-primary/10 flex items-center justify-between">
-                    <h3 className="text-sm font-headline tracking-widest text-primary flex items-center gap-2">
+                    <h3 className="text-sm font-headline tracking-widest text-primary flex items-center gap-2 uppercase">
                         <Database className="w-4 h-4" />
                         RETRIEVED DATA CORE
                     </h3>
@@ -300,7 +322,7 @@ export const IntelligenceCenter: React.FC = () => {
       <div className="space-y-6">
         <Card className="glass-card border-primary/20 h-full flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between py-4">
-            <CardTitle className="flex items-center gap-2 text-sm font-headline tracking-widest text-primary">
+            <CardTitle className="flex items-center gap-2 text-sm font-headline tracking-widest text-primary uppercase">
               <History className="w-4 h-4" />
               OPERATIONAL LOGS
             </CardTitle>
@@ -315,11 +337,11 @@ export const IntelligenceCenter: React.FC = () => {
               </Button>
             )}
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto max-h-[600px] px-2">
+          <CardContent className="flex-1 overflow-auto max-h-[600px] px-2 scrollbar-thin scrollbar-thumb-primary/20">
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
                 <FileText className="w-12 h-12 mb-2" />
-                <p className="text-xs font-code uppercase tracking-tighter">No active logs</p>
+                <p className="text-xs font-code uppercase tracking-tighter">No active logs detected</p>
               </div>
             ) : (
               <div className="space-y-2">

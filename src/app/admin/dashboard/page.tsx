@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth, useFirestore, useCollection } from '@/firebase';
 import { doc, getDoc, updateDoc, increment, collection, query, orderBy, limit } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { Settings, Lock, LogOut, ShieldAlert, Save, RefreshCw, Cpu, Database, CheckCircle2, XCircle, Clock, History } from 'lucide-react';
+import { Settings, Lock, LogOut, ShieldAlert, Save, RefreshCw, Cpu, Database, CheckCircle2, XCircle, Clock, History, Globe } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -49,7 +49,7 @@ export default function AdminDashboardPage() {
   // Payment Requests Query
   const requestsQuery = useMemo(() => {
     if (!db) return null;
-    return query(collection(db, 'payment_requests'), orderBy('timestamp', 'desc'), limit(10));
+    return query(collection(db, 'payment_requests'), orderBy('timestamp', 'desc'), limit(20));
   }, [db]);
 
   const { data: requests, loading: requestsLoading } = useCollection(requestsQuery);
@@ -94,6 +94,24 @@ export default function AdminDashboardPage() {
     setIsSaving(false);
   };
 
+  const setTelegramWebhook = async () => {
+    const host = window.location.host;
+    const botToken = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
+    const webhookUrl = `https://${host}/api/telegram-webhook`;
+    
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${webhookUrl}`);
+      const data = await res.json();
+      if (data.ok) {
+        toast({ title: "Webhook Registered", description: "Telegram bot is now connected to this endpoint." });
+      } else {
+        toast({ variant: "destructive", title: "Webhook Failed", description: data.description });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Network Error", description: e.message });
+    }
+  };
+
   const handleLogout = async () => {
     if (!auth) return;
     await signOut(auth);
@@ -131,11 +149,16 @@ export default function AdminDashboardPage() {
           
           <div className="lg:col-span-2 space-y-8">
             <Card className="glass-card border-primary/20">
-              <CardHeader className="border-b border-primary/10 mb-4">
-                <CardTitle className="flex items-center gap-2 text-lg text-primary font-headline tracking-widest">
-                  <Database className="w-5 h-5" /> PAYMENT APPROVAL TERMINAL
-                </CardTitle>
-                <CardDescription className="text-muted-foreground text-xs uppercase font-code">Real-time lookup authorization queue</CardDescription>
+              <CardHeader className="border-b border-primary/10 mb-4 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg text-primary font-headline tracking-widest uppercase">
+                    <Database className="w-5 h-5" /> PAYMENT APPROVAL TERMINAL
+                  </CardTitle>
+                  <CardDescription className="text-muted-foreground text-xs uppercase font-code">Authorization override queue</CardDescription>
+                </div>
+                <Button onClick={setTelegramWebhook} size="sm" variant="outline" className="text-[10px] h-7 border-primary/20 hover:bg-primary/10">
+                  <Globe className="w-3 h-3 mr-1" /> SYNC WEBHOOK
+                </Button>
               </CardHeader>
               <CardContent>
                 {requestsLoading ? (
@@ -149,7 +172,7 @@ export default function AdminDashboardPage() {
                     <p className="text-[10px] font-code uppercase">No pending requests detected</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-h-[600px] overflow-auto pr-2 scrollbar-thin scrollbar-thumb-primary/20">
                     {requests.map((req: any) => (
                       <div key={req.requestId} className="bg-black/40 border border-primary/10 p-4 rounded-lg flex items-center justify-between group hover:border-primary/30 transition-all">
                         <div className="space-y-1">
@@ -159,6 +182,7 @@ export default function AdminDashboardPage() {
                             <span className={`text-[10px] font-code px-1.5 py-0.5 rounded border ${
                               req.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
                               req.status === 'WAITING_APPROVAL' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
+                              req.status === 'USED' ? 'bg-blue-500/10 border-blue-500/20 text-blue-500' :
                               'bg-destructive/10 border-destructive/20 text-destructive'
                             }`}>
                               {req.status}
@@ -174,18 +198,18 @@ export default function AdminDashboardPage() {
                           <div className="flex gap-2">
                             <Button 
                               size="sm" 
-                              className="bg-emerald-600 hover:bg-emerald-500 h-8 font-bold"
+                              className="bg-emerald-600 hover:bg-emerald-500 h-8 font-bold text-[10px]"
                               onClick={() => handleRequestStatus(req.requestId, 'APPROVED')}
                             >
-                              <CheckCircle2 className="w-4 h-4 mr-1" /> APPROVE
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> APPROVE
                             </Button>
                             <Button 
                               size="sm" 
                               variant="destructive" 
-                              className="h-8 font-bold"
+                              className="h-8 font-bold text-[10px]"
                               onClick={() => handleRequestStatus(req.requestId, 'DECLINED')}
                             >
-                              <XCircle className="w-4 h-4 mr-1" /> DECLINE
+                              <XCircle className="w-3.5 h-3.5 mr-1" /> DECLINE
                             </Button>
                           </div>
                         )}

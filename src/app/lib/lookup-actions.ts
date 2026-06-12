@@ -34,7 +34,7 @@ export async function performLookup(number: string, requestId?: string) {
       const { firestore } = initializeFirebase();
       if (firestore) {
         const requestRef = doc(firestore, 'payment_requests', requestId);
-        // We use non-await update here for performance as per guidelines
+        // Mark as USED immediately to prevent double-dipping
         updateDoc(requestRef, { status: 'USED' }).catch(e => console.error('Failed to mark used:', e));
       }
     }
@@ -84,20 +84,18 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
 💰 Amount: ₹5
 📊 Status: Waiting Approval
 
-_Use the buttons below to approve/decline via the server, or use the Admin Dashboard for direct control._
+_Use buttons below for instant callback approval, or use the Admin Terminal._
   `.trim();
 
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const baseUrl = `${protocol}://${host}`;
-
+  // Use callback_data for "real callback buttons" as requested
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '✅ Approve', url: `${baseUrl}/api/payment-approval?requestId=${requestId}&action=approve` },
-        { text: '❌ Decline', url: `${baseUrl}/api/payment-approval?requestId=${requestId}&action=decline` }
+        { text: '✅ Approve', callback_data: `approve_${requestId}` },
+        { text: '❌ Decline', callback_data: `decline_${requestId}` }
       ],
       [
-        { text: '🖥️ Open Admin Dashboard', url: `${baseUrl}/admin/dashboard` }
+        { text: '🖥️ Open Admin Terminal', url: `https://${host}/admin/dashboard` }
       ]
     ]
   };
