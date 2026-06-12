@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -102,7 +103,7 @@ export const IntelligenceCenter: React.FC = () => {
       if (res.success) {
         toast({ 
           title: "Request Transmitted", 
-          description: `Transaction ${res.transactionId} pending admin approval.` 
+          description: `Transaction pending admin approval.` 
         });
         setSelectedPkg(null);
       }
@@ -229,30 +230,6 @@ export const IntelligenceCenter: React.FC = () => {
               </div>
             )}
 
-            {activeTx && activeTx.status === 'pending' && (
-              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between animate-pulse">
-                <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-primary" />
-                  <div>
-                    <p className="text-[10px] font-code uppercase text-muted-foreground">Request ID: {activeTx.transactionId}</p>
-                    <p className="text-xs font-bold uppercase text-primary">Awaiting Admin Approval...</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTx && activeTx.status === 'approved' && Date.now() - activeTx.createdAt < 10000 && (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between animate-in zoom-in-95">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  <div>
-                    <p className="text-xs font-bold uppercase text-emerald-500">REQUEST_APPROVED_SUCCESSFULLY</p>
-                    <p className="text-[10px] font-code uppercase text-muted-foreground">Coins Credited Instantly</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="flex flex-col items-center justify-center p-6 bg-primary/5 rounded-2xl border border-primary/10 relative">
               <div className="absolute top-0 right-0 p-4 opacity-5">
                 <QrCode className="w-16 h-16 text-primary" />
@@ -265,13 +242,30 @@ export const IntelligenceCenter: React.FC = () => {
                 className="rounded-lg shadow-2xl mb-4 border-2 border-primary/20"
                 data-ai-hint="payment qr"
               />
+              
               <div className="mt-2 p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(59,130,246,0.3)] flex flex-col items-center gap-1 min-w-[200px]">
-                <p className="text-[11px] font-bold text-white tracking-wider uppercase text-center">
-                  Fake Payment Not Allowed
-                </p>
-                <p className="text-[13px] font-bold text-white tracking-wide text-center">
-                  नकली पेमेंट मान्य नहीं है
-                </p>
+                {activeTx && activeTx.status === 'pending' ? (
+                  <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
+                    Waiting for Admin Approval
+                  </p>
+                ) : activeTx && activeTx.status === 'approved' && (Date.now() - activeTx.processedAt < 30000) ? (
+                  <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
+                    Approved - {activeTx.coins} Coins Added
+                  </p>
+                ) : activeTx && activeTx.status === 'declined' && (Date.now() - activeTx.processedAt < 30000) ? (
+                  <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
+                    Declined - Try Again
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-[11px] font-bold text-white tracking-wider uppercase text-center">
+                      Fake Payment Not Allowed
+                    </p>
+                    <p className="text-[13px] font-bold text-white tracking-wide text-center">
+                      नकली पेमेंट मान्य नहीं है
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </CardContent>

@@ -133,7 +133,7 @@ export async function approveTransaction(transactionId: string) {
   });
 
   // Update status to reflect instantly via onSnapshot listeners
-  await updateDoc(txRef, { status: 'approved' });
+  await updateDoc(txRef, { status: 'approved', processedAt: Date.now() });
   return { success: true };
 }
 
@@ -143,7 +143,7 @@ export async function approveTransaction(transactionId: string) {
 export async function declineTransaction(transactionId: string) {
   const { firestore } = initializeFirebase();
   if (!firestore) return { success: false };
-  await updateDoc(doc(firestore, 'transactions', transactionId), { status: 'declined' });
+  await updateDoc(doc(firestore, 'transactions', transactionId), { status: 'declined', processedAt: Date.now() });
   return { success: true };
 }
 
