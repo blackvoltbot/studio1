@@ -18,7 +18,8 @@ import {
   Coins,
   ArrowUpCircle,
   Plus,
-  Minus
+  Minus,
+  Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -31,13 +32,15 @@ import { approveTransaction, declineTransaction, removeTransaction, updateSystem
 
 /**
  * Inline control for adjusting a user's balance directly from the table.
- * Supports incremental adjustment (+/-) and absolute value override on click.
+ * Strictly scoped to a single user via the phone prop.
+ * Provides increment/decrement and absolute value override with an explicit Update button.
  */
 const UserBalanceControl = ({ phone }: { phone: string }) => {
   const db = useFirestore();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   
+  // Scoped user reference to ensure we only target this specific individual
   const userRef = useMemo(() => {
     if (!db || !phone) return null;
     return doc(db, 'users', phone);
@@ -46,12 +49,14 @@ const UserBalanceControl = ({ phone }: { phone: string }) => {
   const { data: userData } = useDoc(userRef);
 
   const handleAdjust = async (amt: number) => {
+    // Mutation is strictly scoped to this specific phone number
     await adjustUserCoins(phone, amt);
   };
 
   const handleManualSave = async () => {
     const num = parseInt(editValue);
     if (!isNaN(num)) {
+      // Mutation is strictly scoped to this specific phone number
       await setUserCoins(phone, num);
     }
     setIsEditing(false);
@@ -59,31 +64,44 @@ const UserBalanceControl = ({ phone }: { phone: string }) => {
 
   return (
     <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded border border-white/5">
-      <div className="flex flex-col min-w-[45px]">
+      <div className="flex flex-col min-w-[50px]">
         <span className="text-[8px] text-muted-foreground uppercase leading-none mb-0.5">Balance</span>
-        {isEditing ? (
-          <input
-            type="number"
-            autoFocus
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={handleManualSave}
-            onKeyDown={(e) => e.key === 'Enter' && handleManualSave()}
-            className="w-12 h-4 bg-black border border-primary/50 text-[10px] text-primary font-bold px-1 rounded focus:outline-none focus:ring-1 focus:ring-primary/50"
-          />
-        ) : (
-          <span 
-            onClick={() => {
-              setEditValue(String(userData?.coins || 0));
-              setIsEditing(true);
-            }}
-            className="text-[11px] font-bold text-white tabular-nums cursor-pointer hover:text-primary transition-colors underline decoration-white/10 underline-offset-2"
-          >
-            {userData?.coins || 0}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {isEditing ? (
+            <div className="flex items-center gap-1 animate-in zoom-in-95 duration-200">
+              <input
+                type="number"
+                autoFocus
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleManualSave()}
+                className="w-12 h-5 bg-black border border-primary/50 text-[10px] text-primary font-bold px-1 rounded focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="h-5 w-5 bg-primary/20 hover:bg-primary/40 text-primary border border-primary/20"
+                onClick={handleManualSave}
+                title="Update Balance"
+              >
+                <Check className="w-3 h-3" />
+              </Button>
+            </div>
+          ) : (
+            <span 
+              onClick={() => {
+                setEditValue(String(userData?.coins || 0));
+                setIsEditing(true);
+              }}
+              className="text-[11px] font-bold text-white tabular-nums cursor-pointer hover:text-primary transition-colors underline decoration-white/10 underline-offset-2"
+              title="Click to manual edit"
+            >
+              {userData?.coins || 0}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="flex gap-1 ml-1">
+      <div className="flex gap-1 ml-1 pl-2 border-l border-white/10">
         <Button 
           size="icon" 
           variant="ghost" 
@@ -266,7 +284,10 @@ export default function AdminDashboardPage() {
                         <td className="px-6 py-4 font-code text-xs text-muted-foreground uppercase">₹{tx.amount}</td>
                         <td className="px-6 py-4 font-code text-xs">
                           <div className="flex items-center gap-4">
-                            <span className="text-primary font-bold">{tx.coins} C</span>
+                            <div className="flex flex-col">
+                              <span className="text-primary font-bold">{tx.coins} C</span>
+                              <span className="text-[8px] text-muted-foreground uppercase">Requested</span>
+                            </div>
                             <div className="h-6 w-[1px] bg-white/10" />
                             <UserBalanceControl phone={tx.userPhone} />
                           </div>
