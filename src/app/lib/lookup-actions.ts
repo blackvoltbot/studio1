@@ -1,7 +1,7 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
-import { doc, getDoc, setDoc, updateDoc, increment, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, increment, deleteDoc, collection } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
@@ -66,17 +66,19 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
 }
 
 /**
- * Creates a coin purchase transaction and notifies admin.
+ * Creates a coin purchase transaction using Firestore Auto-ID and notifies admin.
  */
 export async function requestCoinPackage(phone: string, packageDetails: { amount: number, coins: number }) {
   const { firestore } = initializeFirebase();
   if (!firestore) throw new Error('DB_OFFLINE');
 
-  const transactionId = Math.random().toString(36).substring(2, 10).toUpperCase();
-  const txRef = doc(firestore, 'transactions', transactionId);
+  // Generate an auto-ID reference
+  const txCollectionRef = collection(firestore, 'transactions');
+  const txRef = doc(txCollectionRef);
+  const transactionId = txRef.id; // The unique Firestore Document ID
 
   await setDoc(txRef, {
-    transactionId,
+    transactionId, // Store the doc ID inside the document for easy lookup
     userPhone: phone,
     amount: packageDetails.amount,
     coins: packageDetails.coins,
@@ -92,7 +94,7 @@ export async function requestCoinPackage(phone: string, packageDetails: { amount
 📦 *Package:* ₹${packageDetails.amount} (${packageDetails.coins} Coins)
 📅 *Date:* ${new Date().toLocaleString()}
 
-_Go to Admin Panel to Approve._
+_Action Required: Go to Admin Panel to Approve._
   `.trim();
 
   try {
