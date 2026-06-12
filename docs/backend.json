@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "GlobalSettings": {
@@ -15,6 +16,22 @@
         }
       },
       "required": ["websitePassword"]
+    },
+    "PaymentRequest": {
+      "title": "Payment Request",
+      "description": "A request for search access triggered by a payment.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "status": { 
+          "type": "string", 
+          "enum": ["WAITING_APPROVAL", "APPROVED", "DECLINED", "USED"] 
+        },
+        "timestamp": { "type": "number" },
+        "amount": { "type": "number" }
+      },
+      "required": ["requestId", "sessionId", "status", "timestamp"]
     }
   },
   "auth": {
@@ -24,6 +41,10 @@
     "/settings/global": {
       "schema": "GlobalSettings",
       "description": "Singleton document for global application settings."
+    },
+    "/payment_requests/{requestId}": {
+      "schema": "PaymentRequest",
+      "description": "Individual payment verification requests."
     }
   }
 }
