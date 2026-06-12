@@ -177,7 +177,7 @@ export async function updateSystemConfig(config: { adminPassword?: string }) {
 }
 
 /**
- * Admin: Adjust user coins manually.
+ * Admin: Adjust user coins manually (increment/decrement).
  */
 export async function adjustUserCoins(phone: string, amount: number) {
   const { firestore } = initializeFirebase();
@@ -185,6 +185,19 @@ export async function adjustUserCoins(phone: string, amount: number) {
   const userRef = doc(firestore, 'users', phone);
   await updateDoc(userRef, {
     coins: increment(amount)
+  });
+  return { success: true };
+}
+
+/**
+ * Admin: Set user coins to absolute value.
+ */
+export async function setUserCoins(phone: string, amount: number) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  const userRef = doc(firestore, 'users', phone);
+  await updateDoc(userRef, {
+    coins: amount
   });
   return { success: true };
 }

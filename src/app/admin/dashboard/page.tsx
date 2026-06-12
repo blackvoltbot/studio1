@@ -27,13 +27,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
-import { approveTransaction, declineTransaction, removeTransaction, updateSystemConfig, adjustUserCoins } from '@/app/lib/lookup-actions';
+import { approveTransaction, declineTransaction, removeTransaction, updateSystemConfig, adjustUserCoins, setUserCoins } from '@/app/lib/lookup-actions';
 
 /**
  * Inline control for adjusting a user's balance directly from the table.
+ * Supports incremental adjustment (+/-) and absolute value override on click.
  */
 const UserBalanceControl = ({ phone }: { phone: string }) => {
   const db = useFirestore();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  
   const userRef = useMemo(() => {
     if (!db || !phone) return null;
     return doc(db, 'users', phone);
@@ -45,11 +49,39 @@ const UserBalanceControl = ({ phone }: { phone: string }) => {
     await adjustUserCoins(phone, amt);
   };
 
+  const handleManualSave = async () => {
+    const num = parseInt(editValue);
+    if (!isNaN(num)) {
+      await setUserCoins(phone, num);
+    }
+    setIsEditing(false);
+  };
+
   return (
     <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded border border-white/5">
-      <div className="flex flex-col">
+      <div className="flex flex-col min-w-[45px]">
         <span className="text-[8px] text-muted-foreground uppercase leading-none mb-0.5">Balance</span>
-        <span className="text-[11px] font-bold text-white tabular-nums">{userData?.coins || 0}</span>
+        {isEditing ? (
+          <input
+            type="number"
+            autoFocus
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleManualSave}
+            onKeyDown={(e) => e.key === 'Enter' && handleManualSave()}
+            className="w-12 h-4 bg-black border border-primary/50 text-[10px] text-primary font-bold px-1 rounded focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
+        ) : (
+          <span 
+            onClick={() => {
+              setEditValue(String(userData?.coins || 0));
+              setIsEditing(true);
+            }}
+            className="text-[11px] font-bold text-white tabular-nums cursor-pointer hover:text-primary transition-colors underline decoration-white/10 underline-offset-2"
+          >
+            {userData?.coins || 0}
+          </span>
+        )}
       </div>
       <div className="flex gap-1 ml-1">
         <Button 
