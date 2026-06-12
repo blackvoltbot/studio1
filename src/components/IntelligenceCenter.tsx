@@ -75,7 +75,7 @@ export const IntelligenceCenter: React.FC = () => {
 
   const { data: userData } = useDoc(userRef);
 
-  // Real-time listener for the latest transaction to drive the QR section
+  // Real-time listener for the latest transaction for this specific user
   const txQuery = useMemo(() => {
     if (!db || !userPhone) return null;
     return query(
@@ -89,19 +89,25 @@ export const IntelligenceCenter: React.FC = () => {
   const { data: latestTx } = useCollection(txQuery);
   const activeTx = latestTx?.[0];
 
-  // Visibility logic for the QR/Status section
+  // Visibility logic for the QR/Status section - Driven by Firestore with local state for instant trigger
   const showQrSection = useMemo(() => {
+    // Show instantly if we just clicked submit
+    if (isSubmittingTx) return true;
+    
     if (!activeTx) return false;
     
     // Always show if pending
     if (activeTx.status === 'pending') return true;
     
-    // Show approved/declined result for a short window (5 mins) after processing to confirm result
-    const FIVE_MINUTES = 5 * 60 * 1000;
-    const isRecent = activeTx.processedAt && (Date.now() - activeTx.processedAt < FIVE_MINUTES);
+    // Show approved/declined result for a short window (10 mins) to confirm result
+    const TEN_MINUTES = 10 * 60 * 1000;
+    const isRecent = activeTx.processedAt && (Date.now() - activeTx.processedAt < TEN_MINUTES);
     
-    return isRecent;
-  }, [activeTx]);
+    // Also consider it recent if it was created very recently (handling race conditions)
+    const isVeryRecent = (Date.now() - activeTx.createdAt < TEN_MINUTES);
+    
+    return isRecent || isVeryRecent;
+  }, [activeTx, isSubmittingTx]);
 
   const currentCoins = userData?.coins || 0;
   const trialUsed = userData?.trialUsed || false;
@@ -245,14 +251,13 @@ export const IntelligenceCenter: React.FC = () => {
               </div>
             )}
 
-            {showQrSection && activeTx && (
+            {showQrSection && (
               <div className="flex flex-col items-center justify-center p-8 bg-primary/5 rounded-2xl border border-primary/10 relative animate-in fade-in zoom-in duration-500">
                 <div className="absolute top-0 right-0 p-4 opacity-5">
                   <QrCode className="w-16 h-16 text-primary" />
                 </div>
                 
-                {/* QR ONLY shows during PENDING status */}
-                {activeTx.status === 'pending' && (
+                {(isSubmittingTx || (activeTx && activeTx.status === 'pending')) && (
                   <img 
                     src="https://i.ibb.co/W4ZwkjYy/f1421dab-de96-46fe-bbb9-c66202f3fe1e.jpg"
                     alt="Payment QR"
@@ -265,22 +270,26 @@ export const IntelligenceCenter: React.FC = () => {
                 
                 <div className="space-y-4 w-full max-w-[300px]">
                   <div className="p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(242,13,13,0.2)] flex flex-col items-center gap-1">
-                    {activeTx.status === 'pending' ? (
+                    {isSubmittingTx || (activeTx && activeTx.status === 'pending') ? (
                       <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
                         Waiting for Admin Approval
                       </p>
-                    ) : activeTx.status === 'approved' ? (
+                    ) : activeTx && activeTx.status === 'approved' ? (
                       <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
                         Approved - {activeTx.coins} Coins Added
                       </p>
-                    ) : activeTx.status === 'declined' ? (
+                    ) : activeTx && activeTx.status === 'declined' ? (
                       <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
                         Declined - Try Again
                       </p>
-                    ) : null}
+                    ) : (
+                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
+                        Initializing Request...
+                      </p>
+                    )}
                   </div>
 
-                  {activeTx.status === 'pending' && (
+                  {(isSubmittingTx || (activeTx && activeTx.status === 'pending')) && (
                     <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] backdrop-blur-md flex flex-col items-center gap-2">
                       <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
                         Fake Payment Not Allowed
