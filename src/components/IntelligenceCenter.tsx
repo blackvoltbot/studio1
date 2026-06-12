@@ -49,7 +49,7 @@ export const IntelligenceCenter: React.FC = () => {
   const [selectedPkg, setSelectedPkg] = useState<typeof COIN_PACKAGES[0] | null>(null);
   const [isSubmittingTx, setIsSubmittingTx] = useState(false);
   const [userPhone, setUserPhone] = useState<string | null>(null);
-  const [forceShowQr, setForceShowQr] = useState(false); // Persistent lock state for QR
+  const [forceShowQr, setForceShowQr] = useState(false);
   
   const { toast } = useToast();
   const db = useFirestore();
@@ -89,32 +89,19 @@ export const IntelligenceCenter: React.FC = () => {
   const { data: latestTx } = useCollection(txQuery);
   const activeTx = latestTx?.[0];
 
-  // Logic to lock QR visibility
   const showQrSection = useMemo(() => {
-    // If we just clicked submit, lock it to true (prevents blink before DB update)
     if (forceShowQr) return true;
-    
     if (!activeTx) return false;
-    
-    // Always show if pending in Firestore
     if (activeTx.status === 'pending') return true;
-    
-    // Show result for 10 minutes after processing
     const TEN_MINUTES = 10 * 60 * 1000;
     const isRecent = activeTx.processedAt && (Date.now() - activeTx.processedAt < TEN_MINUTES);
-    
     return isRecent;
   }, [activeTx, forceShowQr]);
 
-  // Release the force lock once Firestore picks up the pending state or a result
   useEffect(() => {
     if (activeTx) {
-      // If we see a record in Firestore, we can let Firestore take over the visibility logic
-      if (activeTx.status !== 'pending' || (activeTx.status === 'pending' && forceShowQr)) {
-        // Optionally keep it true if pending, but once it changes status, we clear force lock
-        if (activeTx.status !== 'pending') {
-          setForceShowQr(false);
-        }
+      if (activeTx.status !== 'pending' && forceShowQr) {
+        setForceShowQr(false);
       }
     }
   }, [activeTx, forceShowQr]);
@@ -130,8 +117,8 @@ export const IntelligenceCenter: React.FC = () => {
       return;
     }
     
-    setForceShowQr(true); // LOCK STATE IMMEDIATELY
     setIsSubmittingTx(true);
+    setForceShowQr(true);
     
     try {
       const res = await requestCoinPackage(userPhone, selectedPkg);
@@ -144,7 +131,7 @@ export const IntelligenceCenter: React.FC = () => {
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Link Failure", description: "Transmission failed." });
-      setForceShowQr(false); // Only unlock on hard error
+      setForceShowQr(false);
     } finally {
       setIsSubmittingTx(false);
     }
@@ -284,17 +271,17 @@ export const IntelligenceCenter: React.FC = () => {
                 
                 <div className="space-y-4 w-full max-w-[300px]">
                   <div className="p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(242,13,13,0.2)] flex flex-col items-center gap-1">
-                    {forceShowQr || (activeTx && activeTx.status === 'pending') ? (
-                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
-                        Waiting for Admin Approval
-                      </p>
-                    ) : activeTx && activeTx.status === 'approved' ? (
+                    {activeTx && activeTx.status === 'approved' ? (
                       <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
                         Approved - {activeTx.coins} Coins Added
                       </p>
                     ) : activeTx && activeTx.status === 'declined' ? (
                       <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
                         Declined - Try Again
+                      </p>
+                    ) : (forceShowQr || (activeTx && activeTx.status === 'pending')) ? (
+                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
+                        Waiting for Admin Approval
                       </p>
                     ) : (
                       <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
