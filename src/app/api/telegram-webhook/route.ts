@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/config';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 
@@ -30,17 +30,19 @@ export async function POST(req: NextRequest) {
     const { firestore } = initializeFirebase();
     if (!firestore) throw new Error('Firestore initialization failed');
 
-    const requestRef = doc(firestore, 'payment_requests', requestId);
-    const requestSnap = await getDoc(requestRef);
+    // Query Firestore by requestId field for robustness
+    const q = query(collection(firestore, 'payment_requests'), where('requestId', '==', requestId));
+    const querySnapshot = await getDocs(q);
 
-    if (!requestSnap.exists()) {
-      await answerCallbackQuery(callbackQuery.id, "❌ Error: Request ID not found in security database.");
+    if (querySnapshot.empty) {
+      await answerCallbackQuery(callbackQuery.id, `❌ Error: Request ID [${requestId}] not found in intelligence database.`);
       return NextResponse.json({ ok: true });
     }
 
+    const requestDoc = querySnapshot.docs[0];
     const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
     
-    await updateDoc(requestRef, { status: newStatus });
+    await updateDoc(requestDoc.ref, { status: newStatus });
 
     await answerCallbackQuery(
       callbackQuery.id, 
