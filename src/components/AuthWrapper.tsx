@@ -1,18 +1,20 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { getToken, onMessage } from 'firebase/messaging';
 import { ShieldAlert, Cpu, Lock, Terminal, AlertCircle, Loader2, Phone, KeyRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore, useDoc, initializeFirebase } from '@/firebase';
 
 interface AuthWrapperProps {
   children: React.ReactNode;
 }
+
+const VAPID_KEY = 'BGMuHwdwqwd4aD8IGkEhUtW4YSF4zhQj3NnjcWUzrWZ65jFWq7DrC-PhFS5JCwt38uuMLkhkwB98kLsNiBVppiI';
 
 export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
   const [mounted, setMounted] = useState(false);
@@ -28,6 +30,38 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     const savedPhone = localStorage.getItem('bd_user_phone');
     if (savedPhone) setCurrentUser(savedPhone);
   }, []);
+
+  // Handle FCM Registration
+  useEffect(() => {
+    if (mounted && currentUser && db) {
+      const registerFCM = async () => {
+        try {
+          const { messaging } = initializeFirebase();
+          if (!messaging) return;
+
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+            const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+            if (token) {
+              const userRef = doc(db, 'users', currentUser);
+              await updateDoc(userRef, { fcmToken: token });
+              console.log('FCM Token Registered:', token);
+            }
+          }
+
+          onMessage(messaging, (payload) => {
+            toast({
+              title: payload.notification?.title || "Notification",
+              description: payload.notification?.body || "",
+            });
+          });
+        } catch (error) {
+          console.error('FCM Registration Error:', error);
+        }
+      };
+      registerFCM();
+    }
+  }, [mounted, currentUser, db, toast]);
 
   const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
   const { data: config, loading: configLoading, error: configError } = useDoc(configRef);

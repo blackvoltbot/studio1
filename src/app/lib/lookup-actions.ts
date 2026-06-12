@@ -131,6 +131,9 @@ export async function approveTransaction(transactionId: string) {
 
   // Credit the user account immediately
   const userRef = doc(firestore, 'users', userPhone);
+  const userSnap = await getDoc(userRef);
+  const userData = userSnap.data();
+
   await updateDoc(userRef, {
     coins: increment(coins)
   });
@@ -140,6 +143,32 @@ export async function approveTransaction(transactionId: string) {
     status: 'approved', 
     processedAt: Date.now() 
   });
+
+  // Trigger Push Notification if user has a token
+  if (userData?.fcmToken) {
+    try {
+      // Note: In a real environment, this requires a Google Auth Token.
+      // For the prototype, we assume the server environment is configured or use a proxy.
+      await fetch(`https://fcm.googleapis.com/fcm/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `key=YOUR_SERVER_KEY` // In a production app, use FCM v1 with proper credentials
+        },
+        body: JSON.stringify({
+          to: userData.fcmToken,
+          notification: {
+            title: "Black Retail",
+            body: "Your request has been approved",
+            icon: "/favicon.ico"
+          }
+        })
+      });
+    } catch (e) {
+      console.error('FCM Notification Error:', e);
+    }
+  }
+
   return { success: true };
 }
 
