@@ -9,17 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import { performLookup, createPaymentRequest } from '@/app/lib/lookup-actions';
 import { doc } from 'firebase/firestore';
 import { useFirestore, useDoc } from '@/firebase';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 interface SearchRecord {
   id: string;
@@ -67,30 +56,6 @@ export const IntelligenceCenter: React.FC = () => {
   const isApproved = requestData?.status === 'approved';
   const isUsed = requestData?.used === true;
   const canSearch = isApproved && !isUsed;
-
-  const handlePayAndUnlock = async () => {
-    setIsProcessingRequest(true);
-    try {
-      const newRequestId = Math.random().toString(36).substring(2, 10).toUpperCase();
-      await createPaymentRequest(newRequestId);
-      
-      setActiveRequestId(newRequestId);
-      localStorage.setItem('bd_active_request', newRequestId);
-      
-      toast({
-        title: "Request Transmitted",
-        description: "Payment notification sent. Access pending."
-      });
-    } catch (e: any) {
-      toast({
-        variant: "destructive",
-        title: "Operational Failure",
-        description: e.message
-      });
-    } finally {
-      setIsProcessingRequest(false);
-    }
-  };
 
   const handleLookup = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -177,30 +142,12 @@ export const IntelligenceCenter: React.FC = () => {
             </div>
 
             <div className="w-full max-w-sm space-y-4">
-              {(!activeRequestId || isUsed || requestData?.status === 'declined') && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button 
-                      disabled={isProcessingRequest}
-                      className="w-full bg-primary hover:bg-primary/80 font-bold tracking-widest h-12 shadow-[0_0_20px_rgba(255,0,0,0.2)] pulse-red"
-                    >
-                      {isProcessingRequest ? "PROCESSING..." : "PAY & UNLOCK"}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="glass-card border-primary/20">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle className="text-primary font-headline uppercase tracking-widest">Confirm Payment</AlertDialogTitle>
-                      <AlertDialogDescription className="text-muted-foreground font-code text-xs uppercase">
-                        Have you successfully completed the UPI transfer? This will notify the operational team to verify and unlock your access.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel className="bg-white/5 border-white/10 text-xs font-code">CANCEL</AlertDialogCancel>
-                      <AlertDialogAction onClick={handlePayAndUnlock} className="bg-primary text-white font-bold text-xs">YES, I HAVE PAID</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
+              <Button 
+                onClick={() => console.log("PAY CLICKED")}
+                className="w-full bg-primary hover:bg-primary/80 font-bold tracking-widest h-12 shadow-[0_0_20px_rgba(255,0,0,0.2)] pulse-red"
+              >
+                Pay & Unlock
+              </Button>
 
               {activeRequestId && requestData?.status === 'pending' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg w-full">
