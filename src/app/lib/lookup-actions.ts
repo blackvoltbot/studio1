@@ -1,3 +1,4 @@
+
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
@@ -7,7 +8,7 @@ const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
 
 /**
- * Perform a search lookup and deduct 5 coins from the user.
+ * Perform a search lookup. Handles the 1-time free trial logic and coin deduction.
  */
 export async function performLookupWithDeduction(phone: string, targetNumber: string) {
   const { firestore } = initializeFirebase();
@@ -17,7 +18,18 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
     const userRef = doc(firestore, 'users', phone);
     const userSnap = await getDoc(userRef);
     
-    if (!userSnap.exists() || (userSnap.data()?.coins || 0) < 5) {
+    if (!userSnap.exists()) {
+      return { success: false, error: 'USER_NOT_FOUND' };
+    }
+
+    const userData = userSnap.data();
+    const trialUsed = userData.trialUsed || false;
+    const currentCoins = userData.coins || 0;
+
+    // Check if user has free trial or enough coins
+    const isFreeTrial = !trialUsed;
+    
+    if (!isFreeTrial && currentCoins < 5) {
       return { success: false, error: 'INSUFFICIENT_COINS' };
     }
 
@@ -37,12 +49,18 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
     if (!response.ok) throw new Error('Provider Link Failed');
     const data = await response.json();
 
-    // Deduct coins only on successful processing
-    await updateDoc(userRef, {
-      coins: increment(-5)
-    });
+    // Deduct coins or consume trial
+    if (isFreeTrial) {
+      await updateDoc(userRef, {
+        trialUsed: true
+      });
+    } else {
+      await updateDoc(userRef, {
+        coins: increment(-5)
+      });
+    }
 
-    return { success: true, data };
+    return { success: true, data, trialConsumed: isFreeTrial };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -74,7 +92,7 @@ export async function requestCoinPackage(phone: string, packageDetails: { amount
 📦 *Package:* ₹${packageDetails.amount} (${packageDetails.coins} Coins)
 📅 *Date:* ${new Date().toLocaleString()}
 
-_Approve via Admin Panel to add coins._
+_Go to Admin Panel to Approve._
   `.trim();
 
   try {
@@ -95,7 +113,7 @@ _Approve via Admin Panel to add coins._
 }
 
 /**
- * Admin: Approve transaction and credit user account.
+ * Admin: Approve transaction and credit user account instantly.
  */
 export async function approveTransaction(transactionId: string) {
   const { firestore } = initializeFirebase();
@@ -108,13 +126,13 @@ export async function approveTransaction(transactionId: string) {
 
   const { userPhone, coins } = txSnap.data();
 
-  // Credit the user
+  // Credit the user account immediately
   const userRef = doc(firestore, 'users', userPhone);
   await updateDoc(userRef, {
     coins: increment(coins)
   });
 
-  // Update status
+  // Update status to reflect instantly via onSnapshot listeners
   await updateDoc(txRef, { status: 'approved' });
   return { success: true };
 }

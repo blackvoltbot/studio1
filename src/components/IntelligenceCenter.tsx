@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -14,15 +15,17 @@ import {
   QrCode, 
   Coins, 
   CreditCard,
-  AlertTriangle
+  AlertTriangle,
+  Send,
+  Loader2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { performLookupWithDeduction, requestCoinPackage } from '@/app/lib/lookup-actions';
-import { doc } from 'firebase/firestore';
-import { useFirestore, useDoc } from '@/firebase';
+import { doc, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { useFirestore, useDoc, useCollection } from '@/firebase';
 
 interface SearchRecord {
   id: string;
@@ -44,7 +47,8 @@ export const IntelligenceCenter: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [history, setHistory] = useState<SearchRecord[]>([]);
   const [currentResult, setCurrentResult] = useState<SearchRecord | null>(null);
-  const [isRequesting, setIsRequesting] = useState<number | null>(null);
+  const [selectedPkg, setSelectedPkg] = useState<typeof COIN_PACKAGES[0] | null>(null);
+  const [isSubmittingTx, setIsSubmittingTx] = useState(false);
   const [userPhone, setUserPhone] = useState<string | null>(null);
   
   const { toast } = useToast();
@@ -72,24 +76,41 @@ export const IntelligenceCenter: React.FC = () => {
 
   const { data: userData, loading: userLoading } = useDoc(userRef);
 
-  const currentCoins = userData?.coins || 0;
-  const canSearch = currentCoins >= 5;
+  // Real-time listener for the user's latest transaction to show status
+  const txQuery = useMemo(() => {
+    if (!db || !userPhone) return null;
+    return query(
+      collection(db, 'transactions'),
+      where('userPhone', '==', userPhone),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+  }, [db, userPhone]);
 
-  const handlePurchase = async (pkg: typeof COIN_PACKAGES[0]) => {
-    if (!userPhone) return;
-    setIsRequesting(pkg.amount);
+  const { data: latestTx } = useCollection(txQuery);
+  const activeTx = latestTx?.[0];
+
+  const currentCoins = userData?.coins || 0;
+  const trialUsed = userData?.trialUsed || false;
+  const hasTrial = !trialUsed;
+  const canSearch = hasTrial || currentCoins >= 5;
+
+  const handleSubmitTransaction = async () => {
+    if (!userPhone || !selectedPkg) return;
+    setIsSubmittingTx(true);
     try {
-      const res = await requestCoinPackage(userPhone, pkg);
+      const res = await requestCoinPackage(userPhone, selectedPkg);
       if (res.success) {
         toast({ 
           title: "Request Transmitted", 
-          description: `Transaction ID ${res.transactionId} pending admin approval.` 
+          description: `Transaction ${res.transactionId} pending admin approval.` 
         });
+        setSelectedPkg(null);
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Link Failure", description: "Transmission failed." });
     } finally {
-      setIsRequesting(null);
+      setIsSubmittingTx(false);
     }
   };
 
@@ -97,7 +118,7 @@ export const IntelligenceCenter: React.FC = () => {
     e?.preventDefault();
     if (!userPhone) return;
     if (!canSearch) {
-      toast({ variant: "destructive", title: "Insufficient Coins", description: "At least 5 coins required for scan." });
+      toast({ variant: "destructive", title: "Access Denied", description: "Add coins to resume scanning." });
       return;
     }
     if (!number || number.length < 5) {
@@ -124,7 +145,11 @@ export const IntelligenceCenter: React.FC = () => {
           return updated;
         });
 
-        toast({ title: "Scan Complete", description: "5 Coins deducted from terminal." });
+        const msg = result.trialConsumed 
+          ? "FREE TRIAL CONSUMED. Normal scans now cost 5 coins."
+          : "Scan Complete. 5 Coins deducted.";
+        
+        toast({ title: "Operation Successful", description: msg });
       } else {
         toast({ variant: "destructive", title: "Scan Failed", description: result.error });
       }
@@ -154,9 +179,14 @@ export const IntelligenceCenter: React.FC = () => {
               <Coins className="w-5 h-5 text-primary" />
               TERMINAL_WALLET
             </CardTitle>
-            <div className="flex items-center gap-3 bg-primary/10 px-4 py-2 rounded-lg border border-primary/20">
-              <p className="text-2xl font-bold font-code text-primary">{currentCoins}</p>
-              <p className="text-[10px] text-muted-foreground uppercase font-code">Credits</p>
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-3 bg-primary/10 px-4 py-2 rounded-lg border border-primary/20">
+                <p className="text-2xl font-bold font-code text-primary">{currentCoins}</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-code">Credits</p>
+              </div>
+              {hasTrial && (
+                <span className="text-[9px] font-code text-emerald-500 uppercase tracking-widest animate-pulse">1 Free Trial Scan Available</span>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -164,17 +194,65 @@ export const IntelligenceCenter: React.FC = () => {
               {COIN_PACKAGES.map((pkg) => (
                 <button
                   key={pkg.amount}
-                  disabled={isRequesting !== null}
-                  onClick={() => handlePurchase(pkg)}
-                  className="flex flex-col items-center gap-2 p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-primary/5 hover:border-primary/40 transition-all group disabled:opacity-50"
+                  onClick={() => setSelectedPkg(pkg)}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all group border ${
+                    selectedPkg?.amount === pkg.amount 
+                      ? 'bg-primary/20 border-primary shadow-[0_0_15px_rgba(242,13,13,0.3)]' 
+                      : 'bg-white/5 border-white/10 hover:bg-primary/5 hover:border-primary/40'
+                  }`}
                 >
                   <p className="text-[10px] text-muted-foreground uppercase font-code group-hover:text-primary">{pkg.label}</p>
                   <p className="text-xl font-bold text-foreground">₹{pkg.amount}</p>
                   <p className="text-[10px] text-primary font-bold uppercase">{pkg.coins} Coins</p>
-                  <CreditCard className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors mt-1" />
                 </button>
               ))}
             </div>
+
+            {selectedPkg && (
+              <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="text-xs font-code uppercase text-muted-foreground">Selection Ready</p>
+                      <p className="text-sm font-bold uppercase">₹{selectedPkg.amount} Package</p>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={handleSubmitTransaction} 
+                    disabled={isSubmittingTx}
+                    className="bg-primary hover:bg-primary/80 font-bold uppercase tracking-widest gap-2"
+                  >
+                    {isSubmittingTx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Submit Request
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {activeTx && activeTx.status === 'pending' && (
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between animate-pulse">
+                <div className="flex items-center gap-3">
+                  <Clock className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="text-[10px] font-code uppercase text-muted-foreground">Request ID: {activeTx.transactionId}</p>
+                    <p className="text-xs font-bold uppercase text-primary">Awaiting Admin Approval...</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTx && activeTx.status === 'approved' && Date.now() - activeTx.createdAt < 10000 && (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between animate-in zoom-in-95">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <div>
+                    <p className="text-xs font-bold uppercase text-emerald-500">REQUEST_APPROVED_SUCCESSFULLY</p>
+                    <p className="text-[10px] font-code uppercase text-muted-foreground">Coins Credited Instantly</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col items-center justify-center p-6 bg-primary/5 rounded-2xl border border-primary/10 relative">
               <div className="absolute top-0 right-0 p-4 opacity-5">
@@ -228,7 +306,7 @@ export const IntelligenceCenter: React.FC = () => {
                 disabled={!canSearch || isSearching}
                 className="bg-primary hover:bg-primary/80 min-w-[140px] h-12 font-bold uppercase tracking-widest"
               >
-                {isSearching ? "SCANNING..." : "SEARCH [5C]"}
+                {isSearching ? "SCANNING..." : hasTrial ? "FREE SCAN" : "SEARCH [5C]"}
               </Button>
             </form>
           </CardContent>

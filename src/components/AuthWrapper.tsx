@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -58,16 +59,17 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
           toast({ variant: "destructive", title: "Access Denied", description: "Incorrect credentials." });
         }
       } else {
-        // Auto-register
+        // Auto-register with 1 free trial search
         await setDoc(userRef, {
           phoneNumber: phone,
           password: pass,
           coins: 0,
+          trialUsed: false,
           createdAt: Date.now()
         });
         localStorage.setItem('bd_user_phone', phone);
         setCurrentUser(phone);
-        toast({ title: "Account Initialized", description: "Welcome to Black Detail." });
+        toast({ title: "Account Initialized", description: "Welcome to Black Detail. You have 1 FREE scan available." });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });

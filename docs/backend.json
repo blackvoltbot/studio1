@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -8,9 +9,10 @@
         "phoneNumber": { "type": "string" },
         "password": { "type": "string" },
         "coins": { "type": "number", "default": 0 },
+        "trialUsed": { "type": "boolean", "default": false },
         "createdAt": { "type": "number" }
       },
-      "required": ["phoneNumber", "password", "coins", "createdAt"]
+      "required": ["phoneNumber", "password", "coins", "createdAt", "trialUsed"]
     },
     "Transaction": {
       "title": "Coin Transaction",
