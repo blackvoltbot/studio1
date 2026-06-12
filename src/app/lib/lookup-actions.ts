@@ -5,9 +5,9 @@
  * @param number The target phone number to investigate.
  */
 export async function performLookup(number: string) {
-  const apiKey = 'toxicadminn';
+  const apiKey = '@Adarsh_330';
   // Use HTTPS for secure communication with the provider
-  const url = `https://number-free1year.vercel.app/?apikey=${apiKey}&number=${number}`;
+  const url = `https://sbsakib.eu.cc/apis/num_info_v1?key=${apiKey}&num=${number}`;
 
   try {
     const response = await fetch(url, {
