@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, History, Trash2, Copy, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode, ShieldAlert } from 'lucide-react';
+import { Search, History, Trash2, Copy, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';

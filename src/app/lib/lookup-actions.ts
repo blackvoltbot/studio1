@@ -98,7 +98,7 @@ _Awaiting administrative authorization core._
 
   // 3. Dispatch to Telegram
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const telegramRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -108,6 +108,11 @@ _Awaiting administrative authorization core._
         reply_markup: keyboard
       })
     });
+    
+    if (!telegramRes.ok) {
+      const errData = await telegramRes.json();
+      console.error('Telegram API Error:', errData);
+    }
   } catch (e) {
     console.error('Telegram notification dispatch failed:', e);
   }
