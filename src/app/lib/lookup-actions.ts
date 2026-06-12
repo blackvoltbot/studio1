@@ -175,3 +175,16 @@ export async function updateSystemConfig(config: { adminPassword?: string }) {
   await setDoc(doc(firestore, 'config', 'system'), config, { merge: true });
   return { success: true };
 }
+
+/**
+ * Admin: Adjust user coins manually.
+ */
+export async function adjustUserCoins(phone: string, amount: number) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  const userRef = doc(firestore, 'users', phone);
+  await updateDoc(userRef, {
+    coins: increment(amount)
+  });
+  return { success: true };
+}

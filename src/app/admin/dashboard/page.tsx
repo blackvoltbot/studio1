@@ -16,7 +16,9 @@ import {
   RefreshCw,
   Loader2,
   Coins,
-  ArrowUpCircle
+  ArrowUpCircle,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -25,7 +27,53 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
-import { approveTransaction, declineTransaction, removeTransaction, updateSystemConfig } from '@/app/lib/lookup-actions';
+import { approveTransaction, declineTransaction, removeTransaction, updateSystemConfig, adjustUserCoins } from '@/app/lib/lookup-actions';
+
+/**
+ * Inline control for adjusting a user's balance directly from the table.
+ */
+const UserBalanceControl = ({ phone }: { phone: string }) => {
+  const db = useFirestore();
+  const userRef = useMemo(() => {
+    if (!db || !phone) return null;
+    return doc(db, 'users', phone);
+  }, [db, phone]);
+
+  const { data: userData } = useDoc(userRef);
+
+  const handleAdjust = async (amt: number) => {
+    await adjustUserCoins(phone, amt);
+  };
+
+  return (
+    <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded border border-white/5">
+      <div className="flex flex-col">
+        <span className="text-[8px] text-muted-foreground uppercase leading-none mb-0.5">Balance</span>
+        <span className="text-[11px] font-bold text-white tabular-nums">{userData?.coins || 0}</span>
+      </div>
+      <div className="flex gap-1 ml-1">
+        <Button 
+          size="icon" 
+          variant="ghost" 
+          className="h-6 w-6 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500"
+          onClick={() => handleAdjust(10)}
+          title="Add 10 Coins"
+        >
+          <Plus className="w-3 h-3" />
+        </Button>
+        <Button 
+          size="icon" 
+          variant="ghost" 
+          className="h-6 w-6 rounded bg-destructive/10 hover:bg-destructive/20 text-destructive"
+          onClick={() => handleAdjust(-10)}
+          title="Subtract 10 Coins"
+        >
+          <Minus className="w-3 h-3" />
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -165,7 +213,7 @@ export default function AdminDashboardPage() {
                       <th className="px-6 py-4">TX ID</th>
                       <th className="px-6 py-4">User Phone</th>
                       <th className="px-6 py-4">Package</th>
-                      <th className="px-6 py-4">Coins</th>
+                      <th className="px-6 py-4">Coins / Balance Control</th>
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
@@ -184,7 +232,13 @@ export default function AdminDashboardPage() {
                         <td className="px-6 py-4 font-code text-xs text-primary">{tx.transactionId}</td>
                         <td className="px-6 py-4 font-code text-xs">{tx.userPhone}</td>
                         <td className="px-6 py-4 font-code text-xs text-muted-foreground uppercase">₹{tx.amount}</td>
-                        <td className="px-6 py-4 font-code text-xs text-primary font-bold">{tx.coins} C</td>
+                        <td className="px-6 py-4 font-code text-xs">
+                          <div className="flex items-center gap-4">
+                            <span className="text-primary font-bold">{tx.coins} C</span>
+                            <div className="h-6 w-[1px] bg-white/10" />
+                            <UserBalanceControl phone={tx.userPhone} />
+                          </div>
+                        </td>
                         <td className="px-6 py-4">
                           <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
                             tx.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500' :
