@@ -3,7 +3,7 @@ import { initializeFirebase } from '@/firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 /**
- * Handles external payment approval/decline requests using direct document ID lookups.
+ * Handles external payment approval/decline requests via direct document lookup.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -11,21 +11,21 @@ export async function GET(req: NextRequest) {
   const action = searchParams.get('action');
 
   if (!requestId || !action) {
-    return new NextResponse('Missing parameters', { status: 400 });
+    return new NextResponse('Missing required operational parameters.', { status: 400 });
   }
 
   const { firestore } = initializeFirebase();
   if (!firestore) {
-    return new NextResponse('Database connection failed', { status: 500 });
+    return new NextResponse('Intelligence database connection failed.', { status: 500 });
   }
 
   try {
-    // DIRECT DOCUMENT LOOKUP: Use requestId as the primary key
+    // DIRECT DOCUMENT LOOKUP: requestId is the primary key
     const docRef = doc(firestore, 'payment_requests', requestId);
     const docSnap = await getDoc(docRef);
 
     if (!docSnap.exists()) {
-      return new NextResponse(`Request ID [${requestId}] not found in intelligence database.`, { status: 404 });
+      return new NextResponse(`Operational failure: Request ID [${requestId}] was not located in the secure database.`, { status: 404 });
     }
 
     const status = action === 'approve' ? 'APPROVED' : 'DECLINED';
@@ -35,11 +35,11 @@ export async function GET(req: NextRequest) {
       <html>
         <body style="background: #050505; color: #f20d0d; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; margin: 0;">
           <div style="border: 1px solid #f20d0d; padding: 40px; border-radius: 10px; box-shadow: 0 0 20px rgba(242,13,13,0.3); background: rgba(0,0,0,0.8);">
-            <h1 style="text-shadow: 0 0 10px rgba(242,13,13,0.6); margin-bottom: 20px; font-size: 24px; letter-spacing: 2px;">ACTION EXECUTED</h1>
+            <h1 style="text-shadow: 0 0 10px rgba(242,13,13,0.6); margin-bottom: 20px; font-size: 24px; letter-spacing: 2px;">ACTION COMPLETED</h1>
             <p style="color: #ccc; font-size: 14px;">REQUEST_ID: <span style="color: #f20d0d;">${requestId}</span></p>
-            <p style="color: #ccc; font-size: 14px;">NEW_STATUS: <strong style="color: #f20d0d;">${status}</strong></p>
+            <p style="color: #ccc; font-size: 14px;">AUTHORIZATION_STATE: <strong style="color: #f20d0d;">${status}</strong></p>
             <div style="margin-top: 30px; border-top: 1px solid rgba(242,13,13,0.2); padding-top: 20px;">
-              <p style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Authorization updated. You may return to the scanner.</p>
+              <p style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Security records updated. Target terminal will unlock automatically.</p>
             </div>
           </div>
         </body>
@@ -48,6 +48,6 @@ export async function GET(req: NextRequest) {
       headers: { 'Content-Type': 'text/html' }
     });
   } catch (error: any) {
-    return new NextResponse(`Operation Failed: ${error.message}`, { status: 500 });
+    return new NextResponse(`Internal System Error: ${error.message}`, { status: 500 });
   }
 }
