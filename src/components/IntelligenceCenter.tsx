@@ -75,6 +75,7 @@ export const IntelligenceCenter: React.FC = () => {
 
   const { data: userData } = useDoc(userRef);
 
+  // Real-time listener for the latest transaction to drive the QR section
   const txQuery = useMemo(() => {
     if (!db || !userPhone) return null;
     return query(
@@ -88,14 +89,14 @@ export const IntelligenceCenter: React.FC = () => {
   const { data: latestTx } = useCollection(txQuery);
   const activeTx = latestTx?.[0];
 
-  // QR Visibility Rule: Driven ONLY by Firestore status
+  // Visibility logic for the QR/Status section
   const showQrSection = useMemo(() => {
     if (!activeTx) return false;
     
     // Always show if pending
     if (activeTx.status === 'pending') return true;
     
-    // Show approved/declined result for a short window (5 mins) after processing
+    // Show approved/declined result for a short window (5 mins) after processing to confirm result
     const FIVE_MINUTES = 5 * 60 * 1000;
     const isRecent = activeTx.processedAt && (Date.now() - activeTx.processedAt < FIVE_MINUTES);
     
@@ -108,7 +109,10 @@ export const IntelligenceCenter: React.FC = () => {
   const canSearch = hasTrial || currentCoins >= 5;
 
   const handleSubmitTransaction = async () => {
-    if (!userPhone || !selectedPkg) return;
+    if (!userPhone || !selectedPkg) {
+      toast({ variant: "destructive", title: "Error", description: "Please select a package first." });
+      return;
+    }
     setIsSubmittingTx(true);
     try {
       const res = await requestCoinPackage(userPhone, selectedPkg);
@@ -278,10 +282,10 @@ export const IntelligenceCenter: React.FC = () => {
 
                   {activeTx.status === 'pending' && (
                     <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] backdrop-blur-md flex flex-col items-center gap-2">
-                      <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                      <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
                         Fake Payment Not Allowed
                       </p>
-                      <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                      <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
                         नकली पेमेंट मान्य नहीं है
                       </p>
                     </div>
