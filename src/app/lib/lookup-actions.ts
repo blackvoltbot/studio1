@@ -34,7 +34,7 @@ export async function performLookup(number: string, requestId?: string) {
       const { firestore } = initializeFirebase();
       if (firestore) {
         const requestRef = doc(firestore, 'payment_requests', requestId);
-        // Mark as USED immediately to prevent double-dipping
+        // Mark as USED immediately
         updateDoc(requestRef, { status: 'USED' }).catch(e => console.error('Failed to mark used:', e));
       }
     }
@@ -62,8 +62,7 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
   const now = new Date();
   const timestamp = now.getTime();
 
-  // 1. Save to Firestore (Path: /payment_requests/{requestId})
-  // This must be completed before the Telegram notification is sent
+  // Explicitly use requestId as the Document ID in 'payment_requests' collection
   await setDoc(doc(firestore, 'payment_requests', requestId), {
     requestId,
     sessionId,
@@ -72,7 +71,6 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
     amount: 5
   });
 
-  // 2. Prepare Telegram notification
   const dateStr = now.toLocaleDateString();
   const timeStr = now.toLocaleTimeString();
   
@@ -87,7 +85,7 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
 _Awaiting administrative authorization core._
   `.trim();
 
-  // callback_data format must match the webhook parser
+  // callback_data format: pay_{action}_{requestId}
   const keyboard = {
     inline_keyboard: [
       [
@@ -97,9 +95,8 @@ _Awaiting administrative authorization core._
     ]
   };
 
-  // 3. Dispatch to Telegram
   try {
-    const telegramRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -109,11 +106,6 @@ _Awaiting administrative authorization core._
         reply_markup: keyboard
       })
     });
-    
-    if (!telegramRes.ok) {
-      const errData = await telegramRes.json();
-      console.error('Telegram API Error:', errData);
-    }
   } catch (e) {
     console.error('Telegram notification dispatch failed:', e);
   }

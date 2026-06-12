@@ -24,7 +24,6 @@ export const IntelligenceCenter: React.FC = () => {
   const [history, setHistory] = useState<SearchRecord[]>([]);
   const [currentResult, setCurrentResult] = useState<SearchRecord | null>(null);
   
-  // Payment State
   const [sessionId, setSessionId] = useState('');
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
@@ -35,7 +34,6 @@ export const IntelligenceCenter: React.FC = () => {
   useEffect(() => {
     setMounted(true);
     
-    // Manage Session
     let sId = localStorage.getItem('bd_session_id');
     if (!sId) {
       sId = crypto.randomUUID();
@@ -43,11 +41,9 @@ export const IntelligenceCenter: React.FC = () => {
     }
     setSessionId(sId);
 
-    // Restore last active request ID if any
     const lastReq = localStorage.getItem('bd_active_request');
     if (lastReq) setActiveRequestId(lastReq);
 
-    // Load History
     const saved = localStorage.getItem('black_detail_history');
     if (saved) {
       try {
@@ -63,12 +59,10 @@ export const IntelligenceCenter: React.FC = () => {
     return doc(db, 'payment_requests', activeRequestId);
   }, [db, activeRequestId]);
 
-  const { data: requestData, loading: requestLoading } = useDoc(requestRef);
+  const { data: requestData } = useDoc(requestRef);
 
-  // Computed Search State
   const canSearch = requestData?.status === 'APPROVED';
 
-  // Watch for approval changes to show toast
   useEffect(() => {
     if (!requestData) return;
 
@@ -138,14 +132,12 @@ export const IntelligenceCenter: React.FC = () => {
 
         setCurrentResult(newRecord);
         
-        // Update local logs
         setHistory(prev => {
           const updated = [newRecord, ...prev.filter(h => h.number !== newRecord.number)].slice(0, 50);
           localStorage.setItem('black_detail_history', JSON.stringify(updated));
           return updated;
         });
 
-        // Clear local payment session
         setActiveRequestId(null);
         localStorage.removeItem('bd_active_request');
 
@@ -186,7 +178,6 @@ export const IntelligenceCenter: React.FC = () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-6">
         
-        {/* Payment & Access Core */}
         <Card className="glass-card border-primary/20 overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <QrCode className="w-24 h-24 text-primary" />
@@ -266,7 +257,6 @@ export const IntelligenceCenter: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Search Scanner */}
         <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-40 grayscale pointer-events-none' : 'red-glow-hover shadow-[0_0_20px_rgba(255,0,0,0.1)]'}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">

@@ -6,57 +6,48 @@ const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 
 /**
  * Handles Telegram callback queries for approval/decline actions.
- * callback_data format: pay_ok_{requestId} or pay_no_{requestId}
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const callbackQuery = body.callback_query;
 
-    if (!callbackQuery) {
+    if (!callbackQuery || !callbackQuery.data) {
       return NextResponse.json({ ok: true });
     }
 
-    const data = callbackQuery.data; // e.g., "pay_ok_uuid"
-    if (!data) return NextResponse.json({ ok: true });
-
-    // Robust parsing using split
+    const data = callbackQuery.data; // Expected format: "pay_ok_{requestId}"
     const parts = data.split('_');
-    const actionKey = parts[1]; // "ok" or "no"
-    const requestId = parts[2]; // the uuid
-
-    if (!actionKey || !requestId) {
-      console.error('[WEBHOOK] Invalid callback data format:', data);
+    
+    // Validate format: prefix (pay), action (ok/no), id (uuid)
+    if (parts.length < 3 || parts[0] !== 'pay') {
       return NextResponse.json({ ok: true });
     }
+
+    const actionKey = parts[1]; // "ok" or "no"
+    const requestId = parts.slice(2).join('_'); // Extract full ID in case it contains underscores
 
     const { firestore } = initializeFirebase();
     if (!firestore) throw new Error('Firestore initialization failed');
 
-    console.log(`[WEBHOOK] Processing ${actionKey} for Request: ${requestId}`);
-
-    // Verify document existence in /payment_requests/{requestId}
     const requestRef = doc(firestore, 'payment_requests', requestId);
     const requestSnap = await getDoc(requestRef);
 
     if (!requestSnap.exists()) {
-      console.error(`[WEBHOOK] RECORD_NOT_FOUND: Request ID ${requestId} missing in 'payment_requests' collection.`);
-      await answerCallbackQuery(callbackQuery.id, "❌ Error: Request record not found in database.");
+      await answerCallbackQuery(callbackQuery.id, "❌ Error: Request ID not found in security database.");
       return NextResponse.json({ ok: true });
     }
 
     const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
     
-    // Execute status update
+    // Update the exactly matched document ID
     await updateDoc(requestRef, { status: newStatus });
 
-    // Notify Admin in Telegram
     await answerCallbackQuery(
       callbackQuery.id, 
-      `SYSTEM: ${newStatus} sequence executed.`
+      `SYSTEM: ${newStatus} sequence executed for ID ${requestId.slice(0,8)}.`
     );
 
-    // Update message UI
     const timestamp = new Date().toLocaleTimeString();
     const statusIcon = newStatus === 'APPROVED' ? '✅' : '❌';
     
