@@ -128,7 +128,6 @@ export const IntelligenceCenter: React.FC = () => {
         localStorage.setItem('bd_active_tx_id', res.transactionId);
         setForceShowQr(true);
         
-        // Clear selection after submission
         setSelectedPkg(null);
         localStorage.removeItem('bd_selected_pkg');
 
@@ -282,11 +281,11 @@ export const IntelligenceCenter: React.FC = () => {
                   <div className="p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(242,13,13,0.2)] flex flex-col items-center gap-1">
                     {activeTx?.status === 'approved' ? (
                       <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
-                        Approved - {activeTx.coins} Coins Added
+                        APPROVED
                       </p>
                     ) : activeTx?.status === 'declined' ? (
                       <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
-                        Declined - Try Again
+                        DECLINED
                       </p>
                     ) : (
                       <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
@@ -295,16 +294,14 @@ export const IntelligenceCenter: React.FC = () => {
                     )}
                   </div>
 
-                  {(!activeTx || activeTx.status === 'pending') && (
-                    <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.15)] backdrop-blur-md flex flex-col items-center gap-2">
-                      <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
-                        Fake Payment Not Allowed
-                      </p>
-                      <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
-                        नकली पेमेंट मान्य नहीं है
-                      </p>
-                    </div>
-                  )}
+                  <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.15)] backdrop-blur-md flex flex-col items-center gap-2">
+                    <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
+                      Fake Payment Not Allowed
+                    </p>
+                    <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
+                      नकली पेमेंट मान्य नहीं है
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
