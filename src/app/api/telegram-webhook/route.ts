@@ -6,7 +6,7 @@ const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 
 /**
  * Handles Telegram callback queries for approval/decline actions.
- * Locates documents DIRECTLY using the requestId as the Firestore document ID.
+ * Targets documents DIRECTLY using the requestId as the Firestore document ID.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -14,24 +14,21 @@ export async function POST(req: NextRequest) {
     const callbackQuery = body.callback_query;
 
     if (!callbackQuery || !callbackQuery.data) {
-      console.log('[TELEGRAM WEBHOOK] Received request without callback data.');
       return NextResponse.json({ ok: true });
     }
 
     const data = callbackQuery.data; 
-    console.log(`[TELEGRAM WEBHOOK] Incoming Callback Data: "${data}"`);
+    console.log(`[TELEGRAM WEBHOOK] Incoming Callback: "${data}"`);
     
     // Expected format: pay_{action}_{requestId}
-    // Action is "ok" (approve) or "no" (decline)
     const parts = data.split('_');
     
     if (parts.length < 3 || parts[0] !== 'pay') {
-      console.warn(`[TELEGRAM WEBHOOK] Invalid callback data format detected: ${data}`);
+      console.warn(`[TELEGRAM WEBHOOK] Invalid callback format: ${data}`);
       return NextResponse.json({ ok: true });
     }
 
     const actionKey = parts[1]; // "ok" or "no"
-    // Join back the rest in case the requestId contains underscores
     const requestId = parts.slice(2).join('_').trim();
 
     if (!requestId) {
@@ -39,12 +36,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    console.log(`[TELEGRAM WEBHOOK] Attempting Direct Document Lookup for ID: [${requestId}]`);
-
     const { firestore } = initializeFirebase();
     if (!firestore) {
-      console.error('[TELEGRAM WEBHOOK] Firestore initialization failed.');
-      throw new Error('Firestore initialization failure');
+      console.error('[TELEGRAM WEBHOOK] Firestore instance unavailable.');
+      return NextResponse.json({ ok: false, error: 'DB_UNAVAILABLE' });
     }
 
     // DIRECT DOCUMENT LOOKUP: requestId is the primary key (Document ID)
@@ -55,25 +50,24 @@ export async function POST(req: NextRequest) {
       console.error(`[TELEGRAM WEBHOOK] NOT FOUND: Record [${requestId}] does not exist in collection "payment_requests".`);
       await answerCallbackQuery(
         callbackQuery.id, 
-        `❌ ERROR: Request [${requestId}] not located in database.`
+        `❌ ERROR: Request [${requestId}] was not found in the database.`
       );
       return NextResponse.json({ ok: true });
     }
 
     const currentData = docSnap.data();
-    console.log(`[TELEGRAM WEBHOOK] Document Found. Current Status: ${currentData.status}`);
-
     const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
     
-    // Execute direct update on the verified document
+    // Execute direct update
     await updateDoc(docRef, { 
       status: newStatus,
-      processedAt: Date.now()
+      processedAt: Date.now(),
+      updatedBy: 'TELEGRAM_BOT'
     });
 
-    console.log(`[TELEGRAM WEBHOOK] SUCCESS: Request ${requestId} status updated to: ${newStatus}`);
+    console.log(`[TELEGRAM WEBHOOK] SUCCESS: Request ${requestId} -> ${newStatus}`);
 
-    // Notify the admin via alert in Telegram
+    // Notify admin
     await answerCallbackQuery(
       callbackQuery.id, 
       `SYSTEM: Authorization ${newStatus} for ID: ${requestId}.`
@@ -82,9 +76,9 @@ export async function POST(req: NextRequest) {
     const timestamp = new Date().toLocaleTimeString();
     const statusIcon = newStatus === 'APPROVED' ? '✅' : '❌';
     
-    // Update the original message to reflect the final operational state
-    const originalText = callbackQuery.message.text || '';
-    const updatedText = `${originalText}\n\n${statusIcon} *STATUS UPDATED:* ${newStatus}\n🕒 *Processed At:* ${timestamp}`;
+    // Update original message
+    const originalText = callbackQuery.message?.text || 'Operational Record';
+    const updatedText = `${originalText}\n\n${statusIcon} *STATUS:* ${newStatus}\n🕒 *Processed:* ${timestamp}`;
 
     await editMessageText(
       callbackQuery.message.chat.id,
@@ -94,7 +88,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error('[TELEGRAM WEBHOOK] Critical System Error:', error);
+    console.error('[TELEGRAM WEBHOOK] CRITICAL FAILURE:', error);
     return NextResponse.json({ ok: false, error: error.message });
   }
 }
@@ -111,7 +105,7 @@ async function answerCallbackQuery(callbackQueryId: string, text: string) {
       })
     });
   } catch (e) {
-    console.error('Telegram API Failure (answerCallbackQuery):', e);
+    console.error('Telegram API Error (answerCallbackQuery):', e);
   }
 }
 
@@ -128,6 +122,6 @@ async function editMessageText(chatId: number, messageId: number, text: string) 
       })
     });
   } catch (e) {
-    console.error('Telegram API Failure (editMessageText):', e);
+    console.error('Telegram API Error (editMessageText):', e);
   }
 }

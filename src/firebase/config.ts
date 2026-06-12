@@ -21,24 +21,24 @@ let firestore: Firestore | null = null;
 
 /**
  * Initializes Firebase services for both Client and Server environments.
+ * Ensures that service instances are always returned even if app is already initialized.
  */
 export function initializeFirebase() {
-  if (!app) {
-    try {
-      if (!getApps().length) {
-        app = initializeApp(firebaseConfig);
-      } else {
-        app = getApps()[0];
-      }
-
-      if (app) {
-        auth = getAuth(app);
-        firestore = getFirestore(app);
-      }
-    } catch (error) {
-      console.warn('Firebase initialization warning:', error);
+  try {
+    if (!getApps().length) {
+      app = initializeApp(firebaseConfig);
+    } else {
+      app = getApps()[0];
     }
+
+    if (app) {
+      auth = getAuth(app);
+      firestore = getFirestore(app);
+    }
+  } catch (error) {
+    console.error('Firebase initialization failure:', error);
   }
+  
   return { app, auth, firestore };
 }
 
