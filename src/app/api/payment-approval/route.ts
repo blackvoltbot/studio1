@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/config';
-import { collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 /**
- * Handles payment approval/decline requests from external links using field queries.
+ * Handles external payment approval/decline requests using direct document ID lookups.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -20,18 +20,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Locate document where requestId field matches
-    const q = query(
-      collection(firestore, 'payment_requests'), 
-      where('requestId', '==', requestId)
-    );
-    const querySnapshot = await getDocs(q);
+    // DIRECT DOCUMENT LOOKUP: Use requestId as the primary key
+    const docRef = doc(firestore, 'payment_requests', requestId);
+    const docSnap = await getDoc(docRef);
 
-    if (querySnapshot.empty) {
-      return new NextResponse('Request not found in security database', { status: 404 });
+    if (!docSnap.exists()) {
+      return new NextResponse(`Request ID [${requestId}] not found in intelligence database.`, { status: 404 });
     }
 
-    const docRef = querySnapshot.docs[0].ref;
     const status = action === 'approve' ? 'APPROVED' : 'DECLINED';
     await updateDoc(docRef, { status });
 
@@ -43,7 +39,7 @@ export async function GET(req: NextRequest) {
             <p style="color: #ccc; font-size: 14px;">REQUEST_ID: <span style="color: #f20d0d;">${requestId}</span></p>
             <p style="color: #ccc; font-size: 14px;">NEW_STATUS: <strong style="color: #f20d0d;">${status}</strong></p>
             <div style="margin-top: 30px; border-top: 1px solid rgba(242,13,13,0.2); padding-top: 20px;">
-              <p style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Security override successful. You may close this window.</p>
+              <p style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Authorization updated. You may return to the scanner.</p>
             </div>
           </div>
         </body>

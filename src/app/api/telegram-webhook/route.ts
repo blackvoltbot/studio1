@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/config';
-import { collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 
 /**
  * Handles Telegram callback queries for approval/decline actions.
- * Locates documents by querying the requestId field.
+ * Locates documents directly using the requestId as the Firestore document ID.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const data = callbackQuery.data; 
     console.log(`[TELEGRAM WEBHOOK] Received callback: ${data}`);
     
-    // Format: pay_{action}_{requestId}
+    // Expected format: pay_{action}_{requestId}
     const parts = data.split('_');
     
     if (parts.length < 3 || parts[0] !== 'pay') {
@@ -31,35 +31,30 @@ export async function POST(req: NextRequest) {
     const actionKey = parts[1]; // "ok" or "no"
     const requestId = parts.slice(2).join('_').trim(); // Extract full ID
 
-    console.log(`[TELEGRAM WEBHOOK] Searching for Request ID: ${requestId}`);
+    console.log(`[TELEGRAM WEBHOOK] Target Request ID: ${requestId}`);
 
     const { firestore } = initializeFirebase();
     if (!firestore) throw new Error('Firestore initialization failure');
 
-    // QUERY BY FIELD: Locate document where requestId field matches
-    const q = query(
-      collection(firestore, 'payment_requests'), 
-      where('requestId', '==', requestId)
-    );
-    const querySnapshot = await getDocs(q);
+    // DIRECT DOCUMENT LOOKUP: requestId is the Document ID
+    const docRef = doc(firestore, 'payment_requests', requestId);
+    const docSnap = await getDoc(docRef);
 
-    if (querySnapshot.empty) {
-      console.error(`[TELEGRAM WEBHOOK] Record not found in intelligence database: ${requestId}`);
+    if (!docSnap.exists()) {
+      console.error(`[TELEGRAM WEBHOOK] Record not found: ${requestId}`);
       await answerCallbackQuery(
         callbackQuery.id, 
-        `❌ Error: Request [${requestId}] not found.`
+        `❌ Error: Request [${requestId}] not found in database.`
       );
       return NextResponse.json({ ok: true });
     }
 
-    // Capture the target document reference
-    const docRef = querySnapshot.docs[0].ref;
     const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
     
-    // Update the record
+    // Update the record directly
     await updateDoc(docRef, { status: newStatus });
 
-    console.log(`[TELEGRAM WEBHOOK] Record ${requestId} status updated to: ${newStatus}`);
+    console.log(`[TELEGRAM WEBHOOK] Record ${requestId} updated to: ${newStatus}`);
 
     // Notify Admin via Telegram Alert
     await answerCallbackQuery(
