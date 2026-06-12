@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeFirebase } from '@/firebase';
+import { initializeFirebase } from '@/firebase/config';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 
 /**
@@ -33,10 +32,10 @@ export async function GET(req: NextRequest) {
     await updateDoc(requestRef, { status });
     return new NextResponse(`
       <html>
-        <body style="background: #050505; color: #f20d0d; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
-          <h1>ACTION EXECUTED</h1>
-          <p>Request ${requestId} has been set to: ${status}</p>
-          <p>You can close this window.</p>
+        <body style="background: #050505; color: #f20d0d; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center;">
+          <h1 style="text-shadow: 0 0 10px rgba(242,13,13,0.6);">ACTION EXECUTED</h1>
+          <p style="color: #666;">Request ${requestId} has been set to: <strong style="color: #f20d0d;">${status}</strong></p>
+          <p style="font-size: 12px; color: #444; margin-top: 20px;">You can close this window.</p>
         </body>
       </html>
     `, {

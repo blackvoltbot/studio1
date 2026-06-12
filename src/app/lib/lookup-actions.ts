@@ -1,7 +1,6 @@
-
 'use server';
 
-import { initializeFirebase } from '@/firebase';
+import { initializeFirebase } from '@/firebase/config';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
