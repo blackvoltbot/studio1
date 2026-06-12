@@ -1,14 +1,14 @@
+
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
-import { collection, addDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
 
 /**
  * Performs a mobile intelligence lookup using the external provider.
- * Invalidates the request immediately after a successful search.
  */
 export async function performLookup(number: string, requestId?: string) {
   const apiKey = '@Adarsh_330';
@@ -30,13 +30,12 @@ export async function performLookup(number: string, requestId?: string) {
 
     const data = await response.json();
 
-    // After a successful search, invalidate the payment request
+    // After a successful search, mark as USED
     if (requestId) {
       const { firestore } = initializeFirebase();
       if (firestore) {
-        const requestRef = doc(firestore, 'payment_requests', requestId);
-        // Mark as USED immediately to prevent credit reuse
-        updateDoc(requestRef, { status: 'USED', usedAt: Date.now() }).catch(e => console.error('Failed to mark used:', e));
+        const requestRef = doc(firestore, 'requests', requestId);
+        updateDoc(requestRef, { used: true }).catch(e => console.error('Failed to mark used:', e));
       }
     }
 
@@ -55,68 +54,91 @@ export async function performLookup(number: string, requestId?: string) {
 
 /**
  * Creates a payment request and notifies admin via Telegram.
- * Uses an explicit requestId field as the primary Firestore document ID.
  */
-export async function createPaymentRequest(requestId: string, sessionId: string, host: string) {
+export async function createPaymentRequest(requestId: string, phoneNumber: string) {
   const { firestore } = initializeFirebase();
   if (!firestore) throw new Error('Intelligence database initialization failure');
 
   const now = new Date();
   const timestamp = now.getTime();
 
-  // Create record with requestId as the primary Document ID
-  await setDoc(doc(firestore, 'payment_requests', requestId), {
+  await setDoc(doc(firestore, 'requests', requestId), {
     requestId,
-    sessionId,
-    status: 'WAITING_APPROVAL',
-    timestamp,
-    amount: 5
+    phoneNumber,
+    paymentStatus: 'pending',
+    status: 'pending',
+    createdAt: timestamp,
+    used: false
   });
 
-  const dateStr = now.toLocaleDateString();
-  const timeStr = now.toLocaleTimeString();
-  
   const message = `
-🚨 *NEW PAYMENT REQUEST*
+🚨 *NEW ACCESS REQUEST*
 🆔 *ID:* \`${requestId}\`
-📅 *Date:* ${dateStr}
-🕒 *Time:* ${timeStr}
-💰 *Amount:* ₹5
-📊 *Status:* WAITING APPROVAL
+📱 *Target:* \`${phoneNumber || 'Not Specified'}\`
+💰 *Status:* PENDING PAYMENT
+📅 *Date:* ${now.toLocaleString()}
 
-_Awaiting administrative authorization._
+_Awaiting administrative authorization via Dashboard._
   `.trim();
 
-  // callback_data format: pay_{action}_{requestId}
-  // This format is parsed by /api/telegram-webhook/route.ts
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: '✅ APPROVE', callback_data: `pay_ok_${requestId}` },
-        { text: '❌ DECLINE', callback_data: `pay_no_${requestId}` }
-      ]
-    ]
-  };
-
   try {
-    const telegramRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
-        parse_mode: 'Markdown',
-        reply_markup: keyboard
+        parse_mode: 'Markdown'
       })
     });
-
-    if (!telegramRes.ok) {
-      const errData = await telegramRes.json();
-      console.error('Telegram API Dispatch Error:', errData);
-    }
   } catch (e) {
-    console.error('Critical Failure: Telegram notification dispatch failed.', e);
+    console.error('Telegram notification dispatch failed.', e);
   }
 
+  return { success: true };
+}
+
+/**
+ * Admin Action: Approve Request
+ */
+export async function approveRequest(requestId: string) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  await updateDoc(doc(firestore, 'requests', requestId), {
+    status: 'approved',
+    used: true
+  });
+  return { success: true };
+}
+
+/**
+ * Admin Action: Decline Request
+ */
+export async function declineRequest(requestId: string) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  await updateDoc(doc(firestore, 'requests', requestId), {
+    status: 'declined'
+  });
+  return { success: true };
+}
+
+/**
+ * Admin Action: Delete Request
+ */
+export async function removeRequest(requestId: string) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  await deleteDoc(doc(firestore, 'requests', requestId));
+  return { success: true };
+}
+
+/**
+ * Admin Settings: Update Credentials
+ */
+export async function updateSystemConfig(config: { adminPassword?: string, sitePassword?: string }) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  await setDoc(doc(firestore, 'config', 'system'), config, { merge: true });
   return { success: true };
 }

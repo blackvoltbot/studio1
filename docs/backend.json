@@ -1,50 +1,42 @@
 
 {
   "entities": {
-    "GlobalSettings": {
-      "title": "Global Settings",
-      "description": "Global application configuration including site password and session management.",
-      "type": "object",
-      "properties": {
-        "websitePassword": {
-          "type": "string",
-          "description": "The global password required to access the site."
-        },
-        "forceLogoutVersion": {
-          "type": "number",
-          "description": "Counter used to invalidate all active sessions."
-        }
-      },
-      "required": ["websitePassword"]
-    },
-    "PaymentRequest": {
-      "title": "Payment Request",
-      "description": "A request for search access triggered by a payment.",
+    "Request": {
+      "title": "Access Request",
+      "description": "User request for intelligence scan access.",
       "type": "object",
       "properties": {
         "requestId": { "type": "string" },
-        "sessionId": { "type": "string" },
-        "status": { 
-          "type": "string", 
-          "enum": ["WAITING_APPROVAL", "APPROVED", "DECLINED", "USED"] 
-        },
-        "timestamp": { "type": "number" },
-        "amount": { "type": "number" }
+        "phoneNumber": { "type": "string" },
+        "paymentStatus": { "type": "string", "enum": ["pending", "paid"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "declined"] },
+        "createdAt": { "type": "number" },
+        "used": { "type": "boolean" }
       },
-      "required": ["requestId", "sessionId", "status", "timestamp"]
+      "required": ["requestId", "status", "createdAt", "used"]
+    },
+    "SystemConfig": {
+      "title": "System Configuration",
+      "description": "Global passwords and system-wide settings.",
+      "type": "object",
+      "properties": {
+        "adminPassword": { "type": "string" },
+        "sitePassword": { "type": "string" }
+      },
+      "required": ["adminPassword", "sitePassword"]
     }
   },
   "auth": {
     "providers": ["password"]
   },
   "firestore": {
-    "/settings/global": {
-      "schema": "GlobalSettings",
-      "description": "Singleton document for global application settings."
+    "/requests/{requestId}": {
+      "schema": "Request",
+      "description": "Intelligence access requests."
     },
-    "/payment_requests/{requestId}": {
-      "schema": "PaymentRequest",
-      "description": "Individual payment verification requests."
+    "/config/system": {
+      "schema": "SystemConfig",
+      "description": "Master system credentials."
     }
   }
 }
