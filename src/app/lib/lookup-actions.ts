@@ -1,7 +1,7 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
-import { doc, getDoc, setDoc, updateDoc, increment, deleteDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, increment, deleteDoc, collection, addDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
@@ -72,13 +72,9 @@ export async function requestCoinPackage(phone: string, packageDetails: { amount
   const { firestore } = initializeFirebase();
   if (!firestore) throw new Error('DB_OFFLINE');
 
-  // Generate an auto-ID reference
+  // Use Firestore addDoc for strictly Auto-generated ID
   const txCollectionRef = collection(firestore, 'transactions');
-  const txRef = doc(txCollectionRef);
-  const transactionId = txRef.id; // The unique Firestore Document ID
-
-  await setDoc(txRef, {
-    transactionId, // Store the doc ID inside the document for easy lookup
+  const docRef = await addDoc(txCollectionRef, {
     userPhone: phone,
     amount: packageDetails.amount,
     coins: packageDetails.coins,
@@ -86,6 +82,11 @@ export async function requestCoinPackage(phone: string, packageDetails: { amount
     createdAt: Date.now(),
     processedAt: null
   });
+
+  const transactionId = docRef.id;
+
+  // Update the document to include its own ID as a field for easy search/sync
+  await updateDoc(docRef, { transactionId });
 
   const message = `
 💰 *NEW COIN REQUEST*

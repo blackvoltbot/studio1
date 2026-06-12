@@ -66,6 +66,15 @@ export const IntelligenceCenter: React.FC = () => {
       setForceShowQr(true);
     }
 
+    const savedPkg = localStorage.getItem('bd_selected_pkg');
+    if (savedPkg) {
+      try {
+        setSelectedPkg(JSON.parse(savedPkg));
+      } catch (e) {
+        localStorage.removeItem('bd_selected_pkg');
+      }
+    }
+
     const savedHistory = localStorage.getItem('black_detail_history');
     if (savedHistory) {
       try {
@@ -75,6 +84,11 @@ export const IntelligenceCenter: React.FC = () => {
       }
     }
   }, []);
+
+  const handlePkgSelect = (pkg: typeof COIN_PACKAGES[0]) => {
+    setSelectedPkg(pkg);
+    localStorage.setItem('bd_selected_pkg', JSON.stringify(pkg));
+  };
 
   const userRef = useMemo(() => {
     if (!db || !userPhone) return null;
@@ -96,8 +110,13 @@ export const IntelligenceCenter: React.FC = () => {
   const canSearch = hasTrial || currentCoins >= 5;
 
   const handleSubmitTransaction = async () => {
-    if (!userPhone || !selectedPkg) {
-      toast({ variant: "destructive", title: "Error", description: "Please select a package first." });
+    if (!userPhone) {
+      toast({ variant: "destructive", title: "Error", description: "User session expired. Please relogin." });
+      return;
+    }
+
+    if (!selectedPkg) {
+      toast({ variant: "destructive", title: "Selection Missing", description: "Please select a coin package first." });
       return;
     }
     
@@ -108,11 +127,15 @@ export const IntelligenceCenter: React.FC = () => {
         setActiveTxId(res.transactionId);
         localStorage.setItem('bd_active_tx_id', res.transactionId);
         setForceShowQr(true);
+        
+        // Clear selection after submission
+        setSelectedPkg(null);
+        localStorage.removeItem('bd_selected_pkg');
+
         toast({ 
           title: "Request Transmitted", 
           description: `Transaction pending admin approval.` 
         });
-        setSelectedPkg(null);
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Link Failure", description: "Transmission failed." });
@@ -202,7 +225,7 @@ export const IntelligenceCenter: React.FC = () => {
               {COIN_PACKAGES.map((pkg) => (
                 <button
                   key={pkg.amount}
-                  onClick={() => setSelectedPkg(pkg)}
+                  onClick={() => handlePkgSelect(pkg)}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all group border ${
                     selectedPkg?.amount === pkg.amount 
                       ? 'bg-primary/20 border-primary shadow-[0_0_15px_rgba(242,13,13,0.3)]' 
