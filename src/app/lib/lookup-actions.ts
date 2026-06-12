@@ -147,18 +147,19 @@ export async function approveTransaction(transactionId: string) {
   // Trigger Push Notification if user has a token
   if (userData?.fcmToken) {
     try {
-      // Send FCM notification using standard legacy API or similar method accessible from server action
+      // Send FCM notification using the FCM API
+      // Note: In a production app, the server key should be stored in environment variables.
       await fetch(`https://fcm.googleapis.com/fcm/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `key=YOUR_SERVER_KEY` // In a production app, use FCM v1 with proper credentials
+          'Authorization': `key=AIzaSyB4Xb0uEh5obLhnqbJsVVuDEEoEtmw58Qk` // Provided API Key
         },
         body: JSON.stringify({
           to: userData.fcmToken,
           notification: {
             title: "Black Retail",
-            body: "Your request has been approved",
+            body: "Your package has been approved",
             icon: "/favicon.ico"
           }
         })
