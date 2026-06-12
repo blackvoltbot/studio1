@@ -54,13 +54,14 @@ export async function performLookup(number: string, requestId?: string) {
 /**
  * Creates a payment request and notifies admin via Telegram.
  */
-export async function createPaymentRequest(requestId: string, phoneNumber: string) {
+export async function createPaymentRequest(requestId: string, phoneNumber: string = 'N/A') {
   const { firestore } = initializeFirebase();
   if (!firestore) throw new Error('Intelligence database initialization failure');
 
   const now = new Date();
   const timestamp = now.getTime();
 
+  // Create the request document
   await setDoc(doc(firestore, 'requests', requestId), {
     requestId,
     phoneNumber,
@@ -70,14 +71,15 @@ export async function createPaymentRequest(requestId: string, phoneNumber: strin
     used: false
   });
 
+  // Notify admin via Telegram (Alert Only)
   const message = `
 🚨 *NEW ACCESS REQUEST*
 🆔 *ID:* \`${requestId}\`
-📱 *Target:* \`${phoneNumber || 'Not Specified'}\`
-💰 *Status:* PENDING PAYMENT
+📱 *Target:* \`${phoneNumber}\`
+💰 *Payment Status:* PENDING
 📅 *Date:* ${now.toLocaleString()}
 
-_Awaiting administrative authorization via Dashboard._
+_Admin action required in Dashboard._
   `.trim();
 
   try {
@@ -105,7 +107,7 @@ export async function approveRequest(requestId: string) {
   if (!firestore) return { success: false };
   await updateDoc(doc(firestore, 'requests', requestId), {
     status: 'approved',
-    used: true
+    used: false // Reset used to false to allow the first search
   });
   return { success: true };
 }

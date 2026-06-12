@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, History, Trash2, Copy, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode } from 'lucide-react';
+import { Search, History, Trash2, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -10,6 +9,17 @@ import { useToast } from '@/hooks/use-toast';
 import { performLookup, createPaymentRequest } from '@/app/lib/lookup-actions';
 import { doc } from 'firebase/firestore';
 import { useFirestore, useDoc } from '@/firebase';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface SearchRecord {
   id: string;
@@ -26,7 +36,7 @@ export const IntelligenceCenter: React.FC = () => {
   const [currentResult, setCurrentResult] = useState<SearchRecord | null>(null);
   
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
-  const [isPaying, setIsPaying] = useState(false);
+  const [isProcessingRequest, setIsProcessingRequest] = useState(false);
   
   const { toast } = useToast();
   const db = useFirestore();
@@ -53,50 +63,32 @@ export const IntelligenceCenter: React.FC = () => {
 
   const { data: requestData, loading: requestLoading } = useDoc(requestRef);
 
-  // Core Access Logic
+  // Access Logic
   const isApproved = requestData?.status === 'approved';
   const isUsed = requestData?.used === true;
   const canSearch = isApproved && !isUsed;
 
-  useEffect(() => {
-    if (!requestData) return;
-
-    if (requestData.status === 'approved' && !requestData.used) {
-      toast({
-        title: "AUTHORIZATION GRANTED",
-        description: "Access unlocked. Scan engaged.",
-      });
-    } else if (requestData.status === 'declined') {
-      toast({
-        variant: "destructive",
-        title: "ACCESS DENIED",
-        description: "Your request was declined by admin.",
-      });
-    }
-  }, [requestData?.status, requestData?.used, toast]);
-
-  const handlePaidClick = async () => {
-    setIsPaying(true);
+  const handlePayAndUnlock = async () => {
+    setIsProcessingRequest(true);
     try {
       const newRequestId = Math.random().toString(36).substring(2, 10).toUpperCase();
-      // Using target number if available, else generic
-      await createPaymentRequest(newRequestId, number || 'N/A');
+      await createPaymentRequest(newRequestId);
       
       setActiveRequestId(newRequestId);
       localStorage.setItem('bd_active_request', newRequestId);
       
       toast({
-        title: "Signal Transmitted",
-        description: "Awaiting administrative approval."
+        title: "Request Transmitted",
+        description: "Payment notification sent. Access pending."
       });
     } catch (e: any) {
       toast({
         variant: "destructive",
-        title: "Error",
+        title: "Operational Failure",
         description: e.message
       });
     } finally {
-      setIsPaying(false);
+      setIsProcessingRequest(false);
     }
   };
 
@@ -134,7 +126,7 @@ export const IntelligenceCenter: React.FC = () => {
         setActiveRequestId(null);
         localStorage.removeItem('bd_active_request');
 
-        toast({ title: "Scan Complete", description: "Authorization expired." });
+        toast({ title: "Scan Complete", description: "Authorization used." });
       } else {
         toast({ variant: "destructive", title: "Scan Failed", description: result.error });
       }
@@ -180,40 +172,60 @@ export const IntelligenceCenter: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1">
-              <p className="text-xl font-bold tracking-widest text-primary uppercase">Pay ₹5 To Search</p>
-              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em]">UPI_ID_VERIFICATION</p>
+              <p className="text-xl font-bold tracking-widest text-primary uppercase">Scan to Pay ₹5</p>
+              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em]">SECURE_UPI_GATEWAY</p>
             </div>
 
             <div className="w-full max-w-sm space-y-4">
               {(!activeRequestId || isUsed || requestData?.status === 'declined') && (
-                <Button 
-                  onClick={handlePaidClick}
-                  disabled={isPaying}
-                  className="w-full bg-primary hover:bg-primary/80 font-bold tracking-widest h-12 shadow-[0_0_20px_rgba(255,0,0,0.2)]"
-                >
-                  {isPaying ? "INITIALIZING..." : "✅ I'VE PAID"}
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      disabled={isProcessingRequest}
+                      className="w-full bg-primary hover:bg-primary/80 font-bold tracking-widest h-12 shadow-[0_0_20px_rgba(255,0,0,0.2)] pulse-red"
+                    >
+                      {isProcessingRequest ? "PROCESSING..." : "PAY & UNLOCK"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="glass-card border-primary/20">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="text-primary font-headline uppercase tracking-widest">Confirm Payment</AlertDialogTitle>
+                      <AlertDialogDescription className="text-muted-foreground font-code text-xs uppercase">
+                        Have you successfully completed the UPI transfer? This will notify the operational team to verify and unlock your access.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="bg-white/5 border-white/10 text-xs font-code">CANCEL</AlertDialogCancel>
+                      <AlertDialogAction onClick={handlePayAndUnlock} className="bg-primary text-white font-bold text-xs">YES, I HAVE PAID</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
 
               {activeRequestId && requestData?.status === 'pending' && (
-                <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg w-full">
                   <Clock className="w-6 h-6 text-primary animate-pulse" />
                   <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold text-center">Awaiting Approval</p>
-                  <p className="text-[10px] text-muted-foreground font-code">ID: {activeRequestId}</p>
+                  <div className="text-center space-y-1">
+                    <p className="text-[10px] text-muted-foreground font-code uppercase">Tracking ID: {activeRequestId}</p>
+                    <p className="text-[9px] text-muted-foreground/60 font-code uppercase animate-pulse">Synchronizing with Admin Core...</p>
+                  </div>
                 </div>
               )}
 
               {canSearch && (
-                <div className="flex flex-col items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                <div className="flex flex-col items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg w-full">
                   <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                  <p className="text-sm font-headline tracking-widest text-emerald-500 uppercase font-bold text-center">Access Unlocked</p>
+                  <p className="text-sm font-headline tracking-widest text-emerald-500 uppercase font-bold text-center">Authorization Granted</p>
+                  <p className="text-[10px] text-muted-foreground font-code uppercase">Scanner Ready</p>
                 </div>
               )}
 
               {requestData?.status === 'declined' && (
-                <div className="flex flex-col items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+                <div className="flex flex-col items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg w-full">
                   <XCircle className="w-6 h-6 text-destructive" />
-                  <p className="text-sm font-headline tracking-widest text-destructive uppercase font-bold text-center">Request Declined</p>
+                  <p className="text-sm font-headline tracking-widest text-destructive uppercase font-bold text-center">Access Denied</p>
+                  <p className="text-[10px] text-muted-foreground font-code uppercase text-center">Verify payment and try again</p>
                 </div>
               )}
             </div>
@@ -231,7 +243,7 @@ export const IntelligenceCenter: React.FC = () => {
             <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Input
-                  placeholder="TARGET_ID"
+                  placeholder="ENTER TARGET NUMBER"
                   className="bg-black/40 border-primary/30 text-primary font-code focus:border-primary pl-10 h-12"
                   value={number}
                   onChange={(e) => setNumber(e.target.value)}
@@ -242,7 +254,7 @@ export const IntelligenceCenter: React.FC = () => {
               <Button 
                 type="submit" 
                 disabled={!canSearch || isSearching}
-                className="bg-primary hover:bg-primary/80 min-w-[140px] h-12 font-bold uppercase tracking-widest pulse-red"
+                className="bg-primary hover:bg-primary/80 min-w-[140px] h-12 font-bold uppercase tracking-widest"
               >
                 {isSearching ? "SCANNING..." : "SEARCH"}
               </Button>
