@@ -147,8 +147,7 @@ export async function approveTransaction(transactionId: string) {
   // Trigger Push Notification if user has a token
   if (userData?.fcmToken) {
     try {
-      // Note: In a real environment, this requires a Google Auth Token.
-      // For the prototype, we assume the server environment is configured or use a proxy.
+      // Send FCM notification using standard legacy API or similar method accessible from server action
       await fetch(`https://fcm.googleapis.com/fcm/send`, {
         method: 'POST',
         headers: {
