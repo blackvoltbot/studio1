@@ -228,6 +228,13 @@ export const IntelligenceCenter: React.FC = () => {
                   <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold">Waiting For Admin Approval</p>
                   <p className="text-[10px] text-muted-foreground font-code">REQ_ID: {activeRequestId?.slice(0, 8)}</p>
                   <p className="text-[9px] text-muted-foreground font-code italic">Checking core status in real-time...</p>
+                  <Button 
+                    variant="link" 
+                    className="text-[10px] text-primary/60 font-code uppercase"
+                    onClick={() => { setActiveRequestId(null); localStorage.removeItem('bd_active_request'); }}
+                  >
+                    Stuck? Reset Session
+                  </Button>
                 </div>
               )}
 

@@ -140,25 +140,25 @@ export default function AdminDashboardPage() {
               <p className="text-xs text-muted-foreground font-code uppercase tracking-widest">Administrative Override Unit</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleLogout} className="border-primary/20 hover:bg-primary/10 text-primary font-code">
-            <LogOut className="w-4 h-4 mr-2" /> EXIT
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={setTelegramWebhook} variant="outline" size="sm" className="border-primary/20 hover:bg-primary/10 text-primary font-code">
+              <Globe className="w-4 h-4 mr-2" /> SYNC WEBHOOK
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleLogout} className="border-primary/20 hover:bg-primary/10 text-primary font-code">
+              <LogOut className="w-4 h-4 mr-2" /> EXIT
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           <div className="lg:col-span-2 space-y-8">
             <Card className="glass-card border-primary/20">
-              <CardHeader className="border-b border-primary/10 mb-4 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-lg text-primary font-headline tracking-widest uppercase">
-                    <Database className="w-5 h-5" /> PAYMENT APPROVAL TERMINAL
-                  </CardTitle>
-                  <CardDescription className="text-muted-foreground text-xs uppercase font-code">Authorization override queue</CardDescription>
-                </div>
-                <Button onClick={setTelegramWebhook} size="sm" variant="outline" className="text-[10px] h-7 border-primary/20 hover:bg-primary/10">
-                  <Globe className="w-3 h-3 mr-1" /> SYNC WEBHOOK
-                </Button>
+              <CardHeader className="border-b border-primary/10 mb-4">
+                <CardTitle className="flex items-center gap-2 text-lg text-primary font-headline tracking-widest uppercase">
+                  <Database className="w-5 h-5" /> PAYMENT APPROVAL TERMINAL
+                </CardTitle>
+                <CardDescription className="text-muted-foreground text-xs uppercase font-code">Authorization override queue</CardDescription>
               </CardHeader>
               <CardContent>
                 {requestsLoading ? (
