@@ -277,47 +277,52 @@ export default function AdminDashboardPage() {
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground font-code">NO_REQUESTS_FOUND</td>
                       </tr>
-                    ) : transactions?.map((tx) => (
-                      <tr key={tx.transactionId} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-6 py-4 font-code text-xs text-primary">{tx.transactionId}</td>
-                        <td className="px-6 py-4 font-code text-xs">{tx.userPhone}</td>
-                        <td className="px-6 py-4 font-code text-xs text-muted-foreground uppercase">₹{tx.amount}</td>
-                        <td className="px-6 py-4 font-code text-xs">
-                          <div className="flex items-center gap-4">
-                            <div className="flex flex-col">
-                              <span className="text-primary font-bold">{tx.coins} C</span>
-                              <span className="text-[8px] text-muted-foreground uppercase">Requested</span>
+                    ) : transactions?.map((tx, index) => {
+                      // Robust key generation following priority order
+                      const rowKey = tx.id || tx.transactionId || `${tx.userPhone}_${tx.createdAt}` || `row_${index}_${Math.random()}`;
+                      
+                      return (
+                        <tr key={rowKey} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-4 font-code text-xs text-primary">{tx.transactionId}</td>
+                          <td className="px-6 py-4 font-code text-xs">{tx.userPhone}</td>
+                          <td className="px-6 py-4 font-code text-xs text-muted-foreground uppercase">₹{tx.amount}</td>
+                          <td className="px-6 py-4 font-code text-xs">
+                            <div className="flex items-center gap-4">
+                              <div className="flex flex-col">
+                                <span className="text-primary font-bold">{tx.coins} C</span>
+                                <span className="text-[8px] text-muted-foreground uppercase">Requested</span>
+                              </div>
+                              <div className="h-6 w-[1px] bg-white/10" />
+                              <UserBalanceControl phone={tx.userPhone} />
                             </div>
-                            <div className="h-6 w-[1px] bg-white/10" />
-                            <UserBalanceControl phone={tx.userPhone} />
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
-                            tx.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500' :
-                            tx.status === 'declined' ? 'bg-destructive/10 border-destructive/50 text-destructive' :
-                            'bg-primary/10 border-primary/50 text-primary animate-pulse'
-                          }`}>
-                            {tx.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right space-x-2">
-                          {tx.status === 'pending' && (
-                            <>
-                              <Button size="icon" variant="ghost" onClick={() => onApprove(tx.transactionId)} className="h-8 w-8 text-emerald-500 hover:bg-emerald-500/10">
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" onClick={() => onDecline(tx.transactionId)} className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                          <Button size="icon" variant="ghost" onClick={() => onDelete(tx.transactionId)} className="h-8 w-8 text-muted-foreground hover:text-white">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                              tx.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500' :
+                              tx.status === 'declined' ? 'bg-destructive/10 border-destructive/50 text-destructive' :
+                              'bg-primary/10 border-primary/50 text-primary animate-pulse'
+                            }`}>
+                              {tx.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            {tx.status === 'pending' && (
+                              <>
+                                <Button size="icon" variant="ghost" onClick={() => onApprove(tx.transactionId)} className="h-8 w-8 text-emerald-500 hover:bg-emerald-500/10">
+                                  <CheckCircle className="w-4 h-4" />
+                                </Button>
+                                <Button size="icon" variant="ghost" onClick={() => onDecline(tx.transactionId)} className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                                  <XCircle className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                            <Button size="icon" variant="ghost" onClick={() => onDelete(tx.transactionId)} className="h-8 w-8 text-muted-foreground hover:text-white">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

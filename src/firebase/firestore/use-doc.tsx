@@ -1,11 +1,10 @@
-
 'use client';
 
 import { DocumentReference, onSnapshot, DocumentData } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 
 export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
-  const [data, setData] = useState<T | null>(null);
+  const [data, setData] = useState<(T & { id: string }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -19,7 +18,7 @@ export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
     const unsubscribe = onSnapshot(
       ref,
       (doc) => {
-        setData(doc.exists() ? doc.data() : null);
+        setData(doc.exists() ? ({ ...(doc.data() as T), id: doc.id }) : null);
         setLoading(false);
       },
       (err) => {
