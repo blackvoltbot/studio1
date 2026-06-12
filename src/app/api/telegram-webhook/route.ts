@@ -1,3 +1,5 @@
+'use client'; // Ensure client SDK compatibility in this route
+
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -18,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = callbackQuery.data; 
-    console.log(`[TELEGRAM WEBHOOK] Incoming Callback: ${data}`);
+    console.log(`[TELEGRAM WEBHOOK] Incoming Callback Data: ${data}`);
     
     // Expected format: pay_{action}_{requestId}
     const parts = data.split('_');
@@ -29,55 +31,64 @@ export async function POST(req: NextRequest) {
     }
 
     const actionKey = parts[1]; // "ok" or "no"
-    const requestId = parts.slice(2).join('_').trim(); // Extract the exact ID
+    // Extract the full ID even if it contains underscores
+    const requestId = parts.slice(2).join('_').trim();
 
-    console.log(`[TELEGRAM WEBHOOK] Targeting Document ID: [${requestId}]`);
+    if (!requestId) {
+      console.error('[TELEGRAM WEBHOOK] Extracted requestId is empty');
+      return NextResponse.json({ ok: true });
+    }
+
+    console.log(`[TELEGRAM WEBHOOK] Executing Direct Lookup for Document ID: [${requestId}]`);
 
     const { firestore } = initializeFirebase();
-    if (!firestore) throw new Error('Firestore link failure');
+    if (!firestore) throw new Error('Firestore initialization failure');
 
     // DIRECT DOCUMENT LOOKUP: requestId is the primary key (Document ID)
     const docRef = doc(firestore, 'payment_requests', requestId);
     const docSnap = await getDoc(docRef);
 
     if (!docSnap.exists()) {
-      console.error(`[TELEGRAM WEBHOOK] Record not found in database: ${requestId}`);
+      console.error(`[TELEGRAM WEBHOOK] Operational Failure: Record [${requestId}] not found in payment_requests collection.`);
       await answerCallbackQuery(
         callbackQuery.id, 
-        `❌ Operational Error: Request [${requestId}] not found in intelligence database.`
+        `❌ ERROR: Request [${requestId}] not located in database.`
       );
       return NextResponse.json({ ok: true });
     }
 
     const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
     
-    // Execute direct update on the found document
+    // Execute direct update on the verified document
     await updateDoc(docRef, { 
       status: newStatus,
       processedAt: Date.now()
     });
 
-    console.log(`[TELEGRAM WEBHOOK] Request ${requestId} status updated to: ${newStatus}`);
+    console.log(`[TELEGRAM WEBHOOK] SUCCESS: Request ${requestId} status updated to: ${newStatus}`);
 
-    // Confirm action to Admin
+    // Notify the admin via alert in Telegram
     await answerCallbackQuery(
       callbackQuery.id, 
-      `SYSTEM: ${newStatus} sequence executed successfully for ID: ${requestId}.`
+      `SYSTEM: Authorization ${newStatus} for ID: ${requestId}.`
     );
 
     const timestamp = new Date().toLocaleTimeString();
     const statusIcon = newStatus === 'APPROVED' ? '✅' : '❌';
     
-    // Update the original notification message to show current status
+    // Update the original message to reflect the final operational state
+    const originalText = callbackQuery.message.text || '';
+    const updatedText = `${originalText}\n\n${statusIcon} *STATUS UPDATED:* ${newStatus}\n🕒 *Processed At:* ${timestamp}`;
+
     await editMessageText(
       callbackQuery.message.chat.id,
       callbackQuery.message.message_id,
-      `${callbackQuery.message.text}\n\n${statusIcon} *FINAL STATUS:* ${newStatus}\n🕒 *Timestamp:* ${timestamp}`
+      updatedText
     );
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error('[TELEGRAM WEBHOOK] Critical operational failure:', error);
+    console.error('[TELEGRAM WEBHOOK] Critical System Error:', error);
     return NextResponse.json({ ok: false, error: error.message });
   }
 }
@@ -94,7 +105,7 @@ async function answerCallbackQuery(callbackQueryId: string, text: string) {
       })
     });
   } catch (e) {
-    console.error('Failed to answer Telegram callback query:', e);
+    console.error('Telegram API Failure (answerCallbackQuery):', e);
   }
 }
 
@@ -111,6 +122,6 @@ async function editMessageText(chatId: number, messageId: number, text: string) 
       })
     });
   } catch (e) {
-    console.error('Failed to update Telegram message:', e);
+    console.error('Telegram API Failure (editMessageText):', e);
   }
 }

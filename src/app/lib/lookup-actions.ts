@@ -8,6 +8,7 @@ const TELEGRAM_CHAT_ID = '6150562869';
 
 /**
  * Performs a mobile intelligence lookup using the external provider.
+ * Invalidates the request immediately after a successful search.
  */
 export async function performLookup(number: string, requestId?: string) {
   const apiKey = '@Adarsh_330';
@@ -34,8 +35,8 @@ export async function performLookup(number: string, requestId?: string) {
       const { firestore } = initializeFirebase();
       if (firestore) {
         const requestRef = doc(firestore, 'payment_requests', requestId);
-        // Mark as USED immediately
-        updateDoc(requestRef, { status: 'USED' }).catch(e => console.error('Failed to mark used:', e));
+        // Mark as USED immediately to prevent credit reuse
+        updateDoc(requestRef, { status: 'USED', usedAt: Date.now() }).catch(e => console.error('Failed to mark used:', e));
       }
     }
 
@@ -54,16 +55,16 @@ export async function performLookup(number: string, requestId?: string) {
 
 /**
  * Creates a payment request and notifies admin via Telegram.
- * Uses an explicit requestId field for searchable lookup.
+ * Uses an explicit requestId field as the primary Firestore document ID.
  */
 export async function createPaymentRequest(requestId: string, sessionId: string, host: string) {
   const { firestore } = initializeFirebase();
-  if (!firestore) throw new Error('Database initialization failure');
+  if (!firestore) throw new Error('Intelligence database initialization failure');
 
   const now = new Date();
   const timestamp = now.getTime();
 
-  // Create record with requestId as both the ID and a field for robust searching
+  // Create record with requestId as the primary Document ID
   await setDoc(doc(firestore, 'payment_requests', requestId), {
     requestId,
     sessionId,
@@ -83,10 +84,11 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
 💰 *Amount:* ₹5
 📊 *Status:* WAITING APPROVAL
 
-_Awaiting administrative authorization core._
+_Awaiting administrative authorization._
   `.trim();
 
   // callback_data format: pay_{action}_{requestId}
+  // This format is parsed by /api/telegram-webhook/route.ts
   const keyboard = {
     inline_keyboard: [
       [
@@ -97,7 +99,7 @@ _Awaiting administrative authorization core._
   };
 
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const telegramRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -107,8 +109,13 @@ _Awaiting administrative authorization core._
         reply_markup: keyboard
       })
     });
+
+    if (!telegramRes.ok) {
+      const errData = await telegramRes.json();
+      console.error('Telegram API Dispatch Error:', errData);
+    }
   } catch (e) {
-    console.error('Telegram notification dispatch failed:', e);
+    console.error('Critical Failure: Telegram notification dispatch failed.', e);
   }
 
   return { success: true };
