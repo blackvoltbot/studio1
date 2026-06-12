@@ -23,8 +23,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { performLookupWithDeduction, requestCoinPackage } from '@/app/lib/lookup-actions';
-import { doc, collection, query, where, orderBy, limit } from 'firebase/firestore';
-import { useFirestore, useDoc, useCollection } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { useFirestore, useDoc } from '@/firebase';
 
 interface SearchRecord {
   id: string;
@@ -49,7 +49,7 @@ export const IntelligenceCenter: React.FC = () => {
   const [selectedPkg, setSelectedPkg] = useState<typeof COIN_PACKAGES[0] | null>(null);
   const [isSubmittingTx, setIsSubmittingTx] = useState(false);
   const [userPhone, setUserPhone] = useState<string | null>(null);
-  const [forceShowQr, setForceShowQr] = useState(false);
+  const [activeTxId, setActiveTxId] = useState<string | null>(null);
   
   const { toast } = useToast();
   const db = useFirestore();
@@ -59,10 +59,13 @@ export const IntelligenceCenter: React.FC = () => {
     const phone = localStorage.getItem('bd_user_phone');
     if (phone) setUserPhone(phone);
 
-    const saved = localStorage.getItem('black_detail_history');
-    if (saved) {
+    const savedTxId = localStorage.getItem('bd_active_tx_id');
+    if (savedTxId) setActiveTxId(savedTxId);
+
+    const savedHistory = localStorage.getItem('black_detail_history');
+    if (savedHistory) {
       try {
-        setHistory(JSON.parse(saved));
+        setHistory(JSON.parse(savedHistory));
       } catch (e) {
         setHistory([]);
       }
@@ -76,35 +79,12 @@ export const IntelligenceCenter: React.FC = () => {
 
   const { data: userData } = useDoc(userRef);
 
-  const txQuery = useMemo(() => {
-    if (!db || !userPhone) return null;
-    return query(
-      collection(db, 'transactions'),
-      where('userPhone', '==', userPhone),
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    );
-  }, [db, userPhone]);
+  const activeTxRef = useMemo(() => {
+    if (!db || !activeTxId) return null;
+    return doc(db, 'transactions', activeTxId);
+  }, [db, activeTxId]);
 
-  const { data: latestTx } = useCollection(txQuery);
-  const activeTx = latestTx?.[0];
-
-  const showQrSection = useMemo(() => {
-    if (forceShowQr) return true;
-    if (!activeTx) return false;
-    if (activeTx.status === 'pending') return true;
-    const TEN_MINUTES = 10 * 60 * 1000;
-    const isRecent = activeTx.processedAt && (Date.now() - activeTx.processedAt < TEN_MINUTES);
-    return isRecent;
-  }, [activeTx, forceShowQr]);
-
-  useEffect(() => {
-    if (activeTx) {
-      if (activeTx.status !== 'pending' && forceShowQr) {
-        setForceShowQr(false);
-      }
-    }
-  }, [activeTx, forceShowQr]);
+  const { data: activeTx } = useDoc(activeTxRef);
 
   const currentCoins = userData?.coins || 0;
   const trialUsed = userData?.trialUsed || false;
@@ -118,20 +98,19 @@ export const IntelligenceCenter: React.FC = () => {
     }
     
     setIsSubmittingTx(true);
-    setForceShowQr(true);
-    
     try {
       const res = await requestCoinPackage(userPhone, selectedPkg);
-      if (res.success) {
+      if (res.success && res.transactionId) {
+        setActiveTxId(res.transactionId);
+        localStorage.setItem('bd_active_tx_id', res.transactionId);
         toast({ 
           title: "Request Transmitted", 
-          description: `Transaction pending admin approval.` 
+          description: `Transaction ${res.transactionId} pending admin approval.` 
         });
         setSelectedPkg(null);
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Link Failure", description: "Transmission failed." });
-      setForceShowQr(false);
     } finally {
       setIsSubmittingTx(false);
     }
@@ -252,13 +231,13 @@ export const IntelligenceCenter: React.FC = () => {
               </div>
             )}
 
-            {showQrSection && (
+            {activeTx && (
               <div className="flex flex-col items-center justify-center p-8 bg-primary/5 rounded-2xl border border-primary/10 relative animate-in fade-in zoom-in duration-500">
                 <div className="absolute top-0 right-0 p-4 opacity-5">
                   <QrCode className="w-16 h-16 text-primary" />
                 </div>
                 
-                {(forceShowQr || (activeTx && activeTx.status === 'pending')) && (
+                {activeTx.status === 'pending' && (
                   <img 
                     src="https://i.ibb.co/W4ZwkjYy/f1421dab-de96-46fe-bbb9-c66202f3fe1e.jpg"
                     alt="Payment QR"
@@ -271,26 +250,22 @@ export const IntelligenceCenter: React.FC = () => {
                 
                 <div className="space-y-4 w-full max-w-[300px]">
                   <div className="p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(242,13,13,0.2)] flex flex-col items-center gap-1">
-                    {activeTx && activeTx.status === 'approved' ? (
+                    {activeTx.status === 'approved' ? (
                       <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
                         Approved - {activeTx.coins} Coins Added
                       </p>
-                    ) : activeTx && activeTx.status === 'declined' ? (
+                    ) : activeTx.status === 'declined' ? (
                       <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
                         Declined - Try Again
                       </p>
-                    ) : (forceShowQr || (activeTx && activeTx.status === 'pending')) ? (
-                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
-                        Waiting for Admin Approval
-                      </p>
                     ) : (
                       <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
-                        Initializing Request...
+                        Waiting for Admin Approval
                       </p>
                     )}
                   </div>
 
-                  {(forceShowQr || (activeTx && activeTx.status === 'pending')) && (
+                  {activeTx.status === 'pending' && (
                     <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.15)] backdrop-blur-md flex flex-col items-center gap-2">
                       <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
                         Fake Payment Not Allowed
