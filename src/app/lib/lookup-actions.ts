@@ -71,15 +71,15 @@ export async function createPaymentRequest(requestId: string, phoneNumber: strin
     used: false
   });
 
-  // Notify admin via Telegram (Alert Only)
+  // Notify admin via Telegram
   const message = `
 🚨 *NEW ACCESS REQUEST*
 🆔 *ID:* \`${requestId}\`
 📱 *Target:* \`${phoneNumber}\`
-💰 *Payment Status:* PENDING
+💰 *Status:* PENDING
 📅 *Date:* ${now.toLocaleString()}
 
-_Admin action required in Dashboard._
+_Check Admin Dashboard to Approve/Decline._
   `.trim();
 
   try {
@@ -107,7 +107,7 @@ export async function approveRequest(requestId: string) {
   if (!firestore) return { success: false };
   await updateDoc(doc(firestore, 'requests', requestId), {
     status: 'approved',
-    used: false // Reset used to false to allow the first search
+    used: false
   });
   return { success: true };
 }

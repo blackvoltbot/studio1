@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, History, Trash2, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode, AlertCircle } from 'lucide-react';
+import { Search, History, Trash2, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -57,6 +57,33 @@ export const IntelligenceCenter: React.FC = () => {
   const isUsed = requestData?.used === true;
   const canSearch = isApproved && !isUsed;
 
+  const handlePayAndUnlock = async () => {
+    if (isProcessingRequest) return;
+    
+    setIsProcessingRequest(true);
+    const newId = Math.random().toString(36).substring(2, 10).toUpperCase();
+    
+    try {
+      const res = await createPaymentRequest(newId);
+      if (res.success) {
+        setActiveRequestId(newId);
+        localStorage.setItem('bd_active_request', newId);
+        toast({ 
+          title: "Request Transmitted", 
+          description: "Payment verification initialized. Waiting for admin." 
+        });
+      }
+    } catch (e: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Link Failure", 
+        description: "Could not establish secure request link." 
+      });
+    } finally {
+      setIsProcessingRequest(false);
+    }
+  };
+
   const handleLookup = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!canSearch) {
@@ -87,7 +114,7 @@ export const IntelligenceCenter: React.FC = () => {
           return updated;
         });
 
-        // Clear session after successful use
+        // Clear session after successful use to prevent reuse
         setActiveRequestId(null);
         localStorage.removeItem('bd_active_request');
 
@@ -143,10 +170,12 @@ export const IntelligenceCenter: React.FC = () => {
 
             <div className="w-full max-w-sm space-y-4">
               <Button 
-                onClick={() => console.log("PAY CLICKED")}
+                onClick={handlePayAndUnlock}
+                disabled={isProcessingRequest || (activeRequestId !== null && requestData?.status === 'pending')}
                 className="w-full bg-primary hover:bg-primary/80 font-bold tracking-widest h-12 shadow-[0_0_20px_rgba(255,0,0,0.2)] pulse-red"
               >
-                Pay & Unlock
+                {isProcessingRequest ? "ESTABLISHING..." : 
+                 (activeRequestId && requestData?.status === 'pending') ? "AWAITING APPROVAL" : "Pay & Unlock"}
               </Button>
 
               {activeRequestId && requestData?.status === 'pending' && (
