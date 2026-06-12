@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
-import { ShieldAlert, Cpu, Lock, Terminal, AlertCircle, Loader2 } from 'lucide-react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { ShieldAlert, Cpu, Lock, Terminal, AlertCircle, Loader2, Phone, KeyRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -15,7 +15,8 @@ interface AuthWrapperProps {
 
 export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
   const [mounted, setMounted] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [phoneInput, setPhoneInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
@@ -23,53 +24,56 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
 
   useEffect(() => {
     setMounted(true);
+    const savedPhone = localStorage.getItem('bd_user_phone');
+    if (savedPhone) setCurrentUser(savedPhone);
   }, []);
 
-  const configRef = useMemo(() => {
-    if (!db) return null;
-    return doc(db, 'config', 'system');
-  }, [db]);
-
+  const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
   const { data: config, loading: configLoading, error: configError } = useDoc(configRef);
 
-  useEffect(() => {
-    if (!mounted || !db || configLoading) return;
-
-    if (config) {
-      const storedAuth = localStorage.getItem('site_auth_token');
-      // Verify token matches live sitePassword with trimming
-      if (storedAuth && storedAuth.trim() === config.sitePassword?.trim()) {
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
-      }
-    } else {
-      // If config is null and no error, we need bootstrap
-      if (!configError) {
-        setIsAuthenticated(false);
-      }
-    }
-  }, [config, configLoading, configError, db, mounted]);
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (configLoading || !config) {
-      toast({ variant: "destructive", title: "System Error", description: "Security module not ready." });
+    if (!db) return;
+    
+    const phone = phoneInput.trim();
+    const pass = passwordInput.trim();
+
+    if (!phone || !pass) {
+      toast({ variant: "destructive", title: "Missing Data", description: "Phone and Password are required." });
       return;
     }
 
     setIsVerifying(true);
-    const input = passwordInput.trim();
-    const target = config.sitePassword?.trim();
+    try {
+      const userRef = doc(db, 'users', phone);
+      const userSnap = await getDoc(userRef);
 
-    if (input && target && input === target) {
-      localStorage.setItem('site_auth_token', target);
-      setIsAuthenticated(true);
-      toast({ title: "Access Granted", description: "Terminal initialized." });
-    } else {
-      toast({ variant: "destructive", title: "Access Denied", description: "Incorrect terminal credentials." });
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        if (data.password === pass) {
+          localStorage.setItem('bd_user_phone', phone);
+          setCurrentUser(phone);
+          toast({ title: "Welcome back", description: "Operational link established." });
+        } else {
+          toast({ variant: "destructive", title: "Access Denied", description: "Incorrect credentials." });
+        }
+      } else {
+        // Auto-register
+        await setDoc(userRef, {
+          phoneNumber: phone,
+          password: pass,
+          coins: 0,
+          createdAt: Date.now()
+        });
+        localStorage.setItem('bd_user_phone', phone);
+        setCurrentUser(phone);
+        toast({ title: "Account Initialized", description: "Welcome to Black Detail." });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setIsVerifying(false);
     }
-    setIsVerifying(false);
   };
 
   const handleBootstrap = async () => {
@@ -77,56 +81,52 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     setIsVerifying(true);
     try {
       await setDoc(doc(db, 'config', 'system'), {
-        adminPassword: 'Guru112511@G@G',
-        sitePassword: 'Ddos11@D'
+        adminPassword: 'Guru112511@G@G'
       });
-      toast({ title: "System Ready", description: "Security configuration initialized." });
+      toast({ title: "System Ready", description: "Master credentials synchronized." });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Initialization Error", description: e.message });
+      toast({ variant: "destructive", title: "Bootstrap Error", description: e.message });
     }
     setIsVerifying(false);
   };
 
   if (!mounted) return null;
 
-  // Loading state
-  if (configLoading || (db && !config && !configError && isAuthenticated === null)) {
+  if (configLoading) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-10 h-10 text-primary animate-spin" />
-        <p className="text-[10px] font-code text-primary uppercase tracking-[0.5em] animate-pulse">Initializing Core...</p>
+        <p className="text-[10px] font-code text-primary uppercase tracking-[0.5em] animate-pulse">Initializing Security Core...</p>
       </div>
     );
   }
 
-  // Error state
   if (configError) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md glass-card border-destructive/30 text-center">
           <CardHeader>
             <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <CardTitle className="text-destructive font-headline tracking-widest uppercase">Database Offline</CardTitle>
+            <CardTitle className="text-destructive font-headline tracking-widest uppercase">CORE_OFFLINE</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => window.location.reload()} className="w-full bg-destructive/80">RECONNECT</Button>
+            <Button onClick={() => window.location.reload()} className="w-full bg-destructive/80 font-code text-xs uppercase">RECONNECT</Button>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // Bootstrap state
-  if (!config && !configLoading && db) {
+  if (!config && db) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md glass-card border-primary/30 red-glow text-center">
+        <Card className="w-full max-w-md glass-card border-primary/30 text-center">
           <CardHeader>
             <Terminal className="w-12 h-12 text-primary mx-auto mb-4" />
-            <CardTitle className="text-2xl font-headline tracking-widest text-glow-red uppercase">INIT_REQUIRED</CardTitle>
+            <CardTitle className="text-2xl font-headline tracking-widest uppercase">INIT_REQUIRED</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={handleBootstrap} disabled={isVerifying} className="w-full bg-primary h-12 font-bold tracking-widest pulse-red">
+            <Button onClick={handleBootstrap} disabled={isVerifying} className="w-full bg-primary font-bold tracking-widest pulse-red uppercase">
               {isVerifying ? "PREPARING..." : "INITIALIZE SECURITY CORE"}
             </Button>
           </CardContent>
@@ -135,29 +135,41 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     );
   }
 
-  // Login state
-  if (isAuthenticated === false) {
+  if (!currentUser) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
         <div className="scanline"></div>
         <Card className="w-full max-w-md glass-card border-primary/30 red-glow">
           <CardHeader className="text-center">
             <CardTitle className="text-4xl font-headline text-glow-red mb-2 uppercase tracking-tighter">BLACK DETAIL</CardTitle>
             <CardDescription className="text-muted-foreground font-code uppercase tracking-widest text-xs flex items-center justify-center gap-2">
-              <Lock className="w-3 h-3 text-primary" /> ENCRYPTED_LINK_REQUIRED
+              <Lock className="w-3 h-3 text-primary" /> SYSTEM_AUTHENTICATION
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
-              <Input
-                type="password"
-                placeholder="TERMINAL_PASSCODE"
-                className="bg-black/50 border-primary/20 text-center text-primary font-code h-12 focus:ring-primary"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                disabled={isVerifying}
-                autoFocus
-              />
+              <div className="relative">
+                <Phone className="absolute left-3 top-3.5 w-4 h-4 text-primary/40" />
+                <Input
+                  type="text"
+                  placeholder="PHONE_NUMBER"
+                  className="bg-black/50 border-primary/20 pl-10 text-primary font-code h-12 focus:ring-primary"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  disabled={isVerifying}
+                />
+              </div>
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-3.5 w-4 h-4 text-primary/40" />
+                <Input
+                  type="password"
+                  placeholder="SECURE_PASSWORD"
+                  className="bg-black/50 border-primary/20 pl-10 text-primary font-code h-12 focus:ring-primary"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  disabled={isVerifying}
+                />
+              </div>
               <Button type="submit" disabled={isVerifying} className="w-full h-12 font-bold tracking-widest pulse-red uppercase">
                 {isVerifying ? "VERIFYING..." : "ENGAGE TERMINAL"}
               </Button>

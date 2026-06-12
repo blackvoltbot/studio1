@@ -13,9 +13,10 @@ import {
   Clock, 
   User, 
   Lock,
-  Search,
   RefreshCw,
-  Loader2
+  Loader2,
+  Coins,
+  ArrowUpCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -24,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
-import { approveRequest, declineRequest, removeRequest, updateSystemConfig } from '@/app/lib/lookup-actions';
+import { approveTransaction, declineTransaction, removeTransaction, updateSystemConfig } from '@/app/lib/lookup-actions';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -32,9 +33,7 @@ export default function AdminDashboardPage() {
   const db = useFirestore();
   const [mounted, setMounted] = useState(false);
 
-  // Form states for settings
   const [newAdminPass, setNewAdminPass] = useState('');
-  const [newSitePass, setNewSitePass] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
@@ -53,12 +52,12 @@ export default function AdminDashboardPage() {
     }
   }, [mounted, config, configLoading, router]);
 
-  const requestsQuery = useMemo(() => {
+  const txQuery = useMemo(() => {
     if (!db) return null;
-    return query(collection(db, 'requests'), orderBy('createdAt', 'desc'));
+    return query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
   }, [db]);
 
-  const { data: requests, loading: reqLoading } = useCollection(requestsQuery);
+  const { data: transactions, loading: txLoading } = useCollection(txQuery);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_auth_token');
@@ -66,38 +65,29 @@ export default function AdminDashboardPage() {
   };
 
   const onApprove = async (id: string) => {
-    const res = await approveRequest(id);
-    if (res.success) toast({ title: "Approved", description: `Request ${id} status updated.` });
+    const res = await approveTransaction(id);
+    if (res.success) toast({ title: "Approved", description: "Coins credited to user." });
   };
 
   const onDecline = async (id: string) => {
-    const res = await declineRequest(id);
-    if (res.success) toast({ title: "Declined", description: `Request ${id} status updated.` });
+    const res = await declineTransaction(id);
+    if (res.success) toast({ title: "Declined", description: "Transaction marked as declined." });
   };
 
   const onDelete = async (id: string) => {
-    const res = await removeRequest(id);
-    if (res.success) toast({ title: "Deleted", description: `Request ${id} removed.` });
+    const res = await removeTransaction(id);
+    if (res.success) toast({ title: "Deleted", description: "Record removed." });
   };
 
   const handleUpdateConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newAdminPass) return;
     setIsUpdating(true);
     try {
-      const updates: any = {};
-      if (newAdminPass) updates.adminPassword = newAdminPass;
-      if (newSitePass) updates.sitePassword = newSitePass;
-
-      if (Object.keys(updates).length > 0) {
-        await updateSystemConfig(updates);
-        toast({ title: "Updated", description: "System credentials modified successfully." });
-        
-        // If admin pass changed, update local storage to prevent auto-logout
-        if (newAdminPass) localStorage.setItem('admin_auth_token', newAdminPass);
-        
-        setNewAdminPass('');
-        setNewSitePass('');
-      }
+      await updateSystemConfig({ adminPassword: newAdminPass });
+      toast({ title: "Updated", description: "Admin passcode modified." });
+      localStorage.setItem('admin_auth_token', newAdminPass);
+      setNewAdminPass('');
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
@@ -118,7 +108,6 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-foreground font-body">
-      {/* Header */}
       <header className="border-b border-white/5 bg-black/80 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -133,36 +122,36 @@ export default function AdminDashboardPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="requests" className="space-y-6">
+        <Tabs defaultValue="transactions" className="space-y-6">
           <TabsList className="bg-white/5 border border-white/10 p-1">
-            <TabsTrigger value="requests" className="gap-2 uppercase font-code text-xs">
-              <Database className="w-3 h-3" />
-              Operational Requests
+            <TabsTrigger value="transactions" className="gap-2 uppercase font-code text-xs">
+              <Coins className="w-3 h-3" />
+              Coin Requests
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2 uppercase font-code text-xs">
               <Settings className="w-3 h-3" />
-              System Settings
+              Settings
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="requests" className="space-y-6">
+          <TabsContent value="transactions" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="glass-card border-white/5">
                 <CardHeader className="py-4">
                   <CardTitle className="text-xs font-code text-muted-foreground uppercase flex items-center gap-2">
-                    <RefreshCw className="w-3 h-3 animate-spin" /> Live Metrics
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Live Stats
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-2xl font-bold font-headline">{requests?.length || 0}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase">Total Requests</p>
+                    <p className="text-2xl font-bold font-headline">{transactions?.length || 0}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Total TX</p>
                   </div>
                   <div>
                     <p className="text-2xl font-bold font-headline text-primary">
-                      {requests?.filter(r => r.status === 'pending').length || 0}
+                      {transactions?.filter(t => t.status === 'pending').length || 0}
                     </p>
-                    <p className="text-[10px] text-muted-foreground uppercase">Pending Approval</p>
+                    <p className="text-[10px] text-muted-foreground uppercase">Pending</p>
                   </div>
                 </CardContent>
               </Card>
@@ -173,58 +162,50 @@ export default function AdminDashboardPage() {
                 <table className="w-full text-sm text-left">
                   <thead className="text-[10px] uppercase font-code text-muted-foreground bg-white/5">
                     <tr>
-                      <th className="px-6 py-4">Request ID</th>
-                      <th className="px-6 py-4">Target Number</th>
-                      <th className="px-6 py-4">Timestamp</th>
+                      <th className="px-6 py-4">TX ID</th>
+                      <th className="px-6 py-4">User Phone</th>
+                      <th className="px-6 py-4">Package</th>
+                      <th className="px-6 py-4">Coins</th>
                       <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Used</th>
-                      <th className="px-6 py-4 text-right">Operational Actions</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {reqLoading ? (
+                    {txLoading ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground font-code">SYNCING_DATABASE...</td>
+                        <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground font-code">SYNCING_TRANSACTIONS...</td>
                       </tr>
-                    ) : requests?.length === 0 ? (
+                    ) : transactions?.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground font-code">NO_ACTIVE_RECORDS</td>
+                        <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground font-code">NO_REQUESTS_FOUND</td>
                       </tr>
-                    ) : requests?.map((req) => (
-                      <tr key={req.requestId} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-6 py-4 font-code text-xs text-primary">{req.requestId}</td>
-                        <td className="px-6 py-4 font-code text-xs">{req.phoneNumber || '---'}</td>
-                        <td className="px-6 py-4 text-[10px] text-muted-foreground uppercase">
-                          {new Date(req.createdAt).toLocaleString()}
-                        </td>
+                    ) : transactions?.map((tx) => (
+                      <tr key={tx.transactionId} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="px-6 py-4 font-code text-xs text-primary">{tx.transactionId}</td>
+                        <td className="px-6 py-4 font-code text-xs">{tx.userPhone}</td>
+                        <td className="px-6 py-4 font-code text-xs text-muted-foreground uppercase">₹{tx.amount}</td>
+                        <td className="px-6 py-4 font-code text-xs text-primary font-bold">{tx.coins} C</td>
                         <td className="px-6 py-4">
                           <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
-                            req.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500' :
-                            req.status === 'declined' ? 'bg-destructive/10 border-destructive/50 text-destructive' :
+                            tx.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500' :
+                            tx.status === 'declined' ? 'bg-destructive/10 border-destructive/50 text-destructive' :
                             'bg-primary/10 border-primary/50 text-primary animate-pulse'
                           }`}>
-                            {req.status}
+                            {tx.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
-                          {req.used ? (
-                            <CheckCircle className="w-4 h-4 text-emerald-500" />
-                          ) : (
-                            <Clock className="w-4 h-4 text-muted-foreground/30" />
-                          )}
-                        </td>
                         <td className="px-6 py-4 text-right space-x-2">
-                          {req.status === 'pending' && (
+                          {tx.status === 'pending' && (
                             <>
-                              <Button size="icon" variant="ghost" onClick={() => onApprove(req.requestId)} className="h-8 w-8 text-emerald-500 hover:bg-emerald-500/10">
+                              <Button size="icon" variant="ghost" onClick={() => onApprove(tx.transactionId)} className="h-8 w-8 text-emerald-500 hover:bg-emerald-500/10">
                                 <CheckCircle className="w-4 h-4" />
                               </Button>
-                              <Button size="icon" variant="ghost" onClick={() => onDecline(req.requestId)} className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                              <Button size="icon" variant="ghost" onClick={() => onDecline(tx.transactionId)} className="h-8 w-8 text-destructive hover:bg-destructive/10">
                                 <XCircle className="w-4 h-4" />
                               </Button>
                             </>
                           )}
-                          <Button size="icon" variant="ghost" onClick={() => onDelete(req.requestId)} className="h-8 w-8 text-muted-foreground hover:text-white">
+                          <Button size="icon" variant="ghost" onClick={() => onDelete(tx.transactionId)} className="h-8 w-8 text-muted-foreground hover:text-white">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </td>
@@ -250,19 +231,9 @@ export default function AdminDashboardPage() {
                     <label className="text-[10px] font-code uppercase text-muted-foreground">Admin Access Token</label>
                     <Input 
                       type="password" 
-                      placeholder="Enter New Admin Password" 
+                      placeholder="NEW_ADMIN_PASSCODE" 
                       value={newAdminPass}
                       onChange={(e) => setNewAdminPass(e.target.value)}
-                      className="bg-black/50 border-white/10 text-primary font-code"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-code uppercase text-muted-foreground">Terminal Access Password</label>
-                    <Input 
-                      type="text" 
-                      placeholder="Enter New Website Password" 
-                      value={newSitePass}
-                      onChange={(e) => setNewSitePass(e.target.value)}
                       className="bg-black/50 border-white/10 text-primary font-code"
                     />
                   </div>
@@ -272,23 +243,6 @@ export default function AdminDashboardPage() {
                     </Button>
                   </div>
                 </form>
-                
-                <div className="mt-8 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <User className="w-4 h-4 text-primary" />
-                    <p className="text-xs font-bold uppercase tracking-widest text-primary">Current Configuration</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-[10px] font-code">
-                    <div>
-                      <p className="text-muted-foreground uppercase">Site Password:</p>
-                      <p className="text-foreground">{config?.sitePassword || 'NOT_SET'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground uppercase">Admin Password:</p>
-                      <p className="text-foreground">••••••••</p>
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>

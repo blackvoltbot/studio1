@@ -1,20 +1,35 @@
 'use client';
 
-import React from 'react';
-import { Shield, LogOut, Terminal, Activity } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Shield, LogOut, Terminal, Activity, Coins, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore, useDoc } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 export const DashboardHeader: React.FC = () => {
   const { toast } = useToast();
+  const db = useFirestore();
+  const [userPhone, setUserPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    const phone = localStorage.getItem('bd_user_phone');
+    if (phone) setUserPhone(phone);
+  }, []);
+
+  const userRef = useMemo(() => {
+    if (!db || !userPhone) return null;
+    return doc(db, 'users', userPhone);
+  }, [db, userPhone]);
+
+  const { data: userData } = useDoc(userRef);
 
   const handleLogout = () => {
-    localStorage.removeItem('site_auth_token');
-    localStorage.removeItem('force_logout_version');
+    localStorage.removeItem('bd_user_phone');
     window.location.reload();
     toast({
-      title: "Logged Out",
-      description: "Session terminated successfully."
+      title: "Session Terminated",
+      description: "Logout successful."
     });
   };
 
@@ -29,20 +44,20 @@ export const DashboardHeader: React.FC = () => {
             <h1 className="text-xl font-bold tracking-tighter text-glow-red font-headline">BLACK DETAIL</h1>
             <div className="flex items-center gap-1.5 -mt-1">
               <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <p className="text-[10px] text-muted-foreground uppercase font-code">OPERATIONAL_READY</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-code">Terminal Active</p>
             </div>
           </div>
         </div>
 
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden lg:flex items-center gap-6">
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-code uppercase tracking-widest">
-            <Activity className="w-3 h-3 text-primary" />
-            <span>Node Latency: <span className="text-primary">12ms</span></span>
+            <User className="w-3 h-3 text-primary" />
+            <span>ID: <span className="text-primary">{userPhone}</span></span>
           </div>
           <div className="h-4 w-[1px] bg-white/10"></div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-code uppercase tracking-widest">
-            <Terminal className="w-3 h-3 text-primary" />
-            <span>Uptime: <span className="text-primary">Active</span></span>
+            <Coins className="w-3 h-3 text-primary" />
+            <span>Credits: <span className="text-primary font-bold">{userData?.coins || 0}</span></span>
           </div>
         </nav>
 

@@ -1,19 +1,30 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
-import { doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, increment, deleteDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
 
 /**
- * Performs a mobile intelligence lookup using the external provider.
+ * Perform a search lookup and deduct 5 coins from the user.
  */
-export async function performLookup(number: string, requestId?: string) {
-  const apiKey = '@Adarsh_330';
-  const url = `https://sbsakib.eu.cc/apis/num_info_v1?key=${apiKey}&num=${number}`;
+export async function performLookupWithDeduction(phone: string, targetNumber: string) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false, error: 'DB_OFFLINE' };
 
   try {
+    const userRef = doc(firestore, 'users', phone);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists() || (userSnap.data()?.coins || 0) < 5) {
+      return { success: false, error: 'INSUFFICIENT_COINS' };
+    }
+
+    // External Provider API
+    const apiKey = '@Adarsh_330';
+    const url = `https://sbsakib.eu.cc/apis/num_info_v1?key=${apiKey}&num=${targetNumber}`;
+    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -23,63 +34,47 @@ export async function performLookup(number: string, requestId?: string) {
       next: { revalidate: 0 }
     });
 
-    if (!response.ok) {
-      throw new Error(`Operational link returned status ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error('Provider Link Failed');
     const data = await response.json();
 
-    // After a successful search, mark as USED
-    if (requestId) {
-      const { firestore } = initializeFirebase();
-      if (firestore) {
-        const requestRef = doc(firestore, 'requests', requestId);
-        updateDoc(requestRef, { used: true }).catch(e => console.error('Failed to mark used:', e));
-      }
-    }
-
-    if (data && data.success === false) {
-      return { 
-        success: false, 
-        error: data.message || data.error || 'Provider failed to retrieve data.' 
-      };
-    }
+    // Deduct coins only on successful processing
+    await updateDoc(userRef, {
+      coins: increment(-5)
+    });
 
     return { success: true, data };
   } catch (error: any) {
-    return { success: false, error: error.message || 'Secure link established but no data returned.' };
+    return { success: false, error: error.message };
   }
 }
 
 /**
- * Creates a payment request and notifies admin via Telegram.
+ * Creates a coin purchase transaction and notifies admin.
  */
-export async function createPaymentRequest(requestId: string, phoneNumber: string = 'N/A') {
+export async function requestCoinPackage(phone: string, packageDetails: { amount: number, coins: number }) {
   const { firestore } = initializeFirebase();
-  if (!firestore) throw new Error('Intelligence database initialization failure');
+  if (!firestore) throw new Error('DB_OFFLINE');
 
-  const now = new Date();
-  const timestamp = now.getTime();
+  const transactionId = Math.random().toString(36).substring(2, 10).toUpperCase();
+  const txRef = doc(firestore, 'transactions', transactionId);
 
-  // Create the request document
-  await setDoc(doc(firestore, 'requests', requestId), {
-    requestId,
-    phoneNumber,
-    paymentStatus: 'pending',
+  await setDoc(txRef, {
+    transactionId,
+    userPhone: phone,
+    amount: packageDetails.amount,
+    coins: packageDetails.coins,
     status: 'pending',
-    createdAt: timestamp,
-    used: false
+    createdAt: Date.now()
   });
 
-  // Notify admin via Telegram
   const message = `
-🚨 *NEW ACCESS REQUEST*
-🆔 *ID:* \`${requestId}\`
-📱 *Target:* \`${phoneNumber}\`
-💰 *Status:* PENDING
-📅 *Date:* ${now.toLocaleString()}
+💰 *NEW COIN REQUEST*
+🆔 *TXID:* \`${transactionId}\`
+📱 *User:* \`${phone}\`
+📦 *Package:* ₹${packageDetails.amount} (${packageDetails.coins} Coins)
+📅 *Date:* ${new Date().toLocaleString()}
 
-_Check Admin Dashboard to Approve/Decline._
+_Approve via Admin Panel to add coins._
   `.trim();
 
   try {
@@ -93,51 +88,61 @@ _Check Admin Dashboard to Approve/Decline._
       })
     });
   } catch (e) {
-    console.error('Telegram notification dispatch failed.', e);
+    console.error('Telegram Notify Error:', e);
   }
 
-  return { success: true };
+  return { success: true, transactionId };
 }
 
 /**
- * Admin Action: Approve Request
+ * Admin: Approve transaction and credit user account.
  */
-export async function approveRequest(requestId: string) {
+export async function approveTransaction(transactionId: string) {
   const { firestore } = initializeFirebase();
   if (!firestore) return { success: false };
-  await updateDoc(doc(firestore, 'requests', requestId), {
-    status: 'approved',
-    used: false
+
+  const txRef = doc(firestore, 'transactions', transactionId);
+  const txSnap = await getDoc(txRef);
+
+  if (!txSnap.exists() || txSnap.data()?.status !== 'pending') return { success: false };
+
+  const { userPhone, coins } = txSnap.data();
+
+  // Credit the user
+  const userRef = doc(firestore, 'users', userPhone);
+  await updateDoc(userRef, {
+    coins: increment(coins)
   });
+
+  // Update status
+  await updateDoc(txRef, { status: 'approved' });
   return { success: true };
 }
 
 /**
- * Admin Action: Decline Request
+ * Admin: Decline transaction.
  */
-export async function declineRequest(requestId: string) {
+export async function declineTransaction(transactionId: string) {
   const { firestore } = initializeFirebase();
   if (!firestore) return { success: false };
-  await updateDoc(doc(firestore, 'requests', requestId), {
-    status: 'declined'
-  });
+  await updateDoc(doc(firestore, 'transactions', transactionId), { status: 'declined' });
   return { success: true };
 }
 
 /**
- * Admin Action: Delete Request
+ * Admin: Remove transaction record.
  */
-export async function removeRequest(requestId: string) {
+export async function removeTransaction(transactionId: string) {
   const { firestore } = initializeFirebase();
   if (!firestore) return { success: false };
-  await deleteDoc(doc(firestore, 'requests', requestId));
+  await deleteDoc(doc(firestore, 'transactions', transactionId));
   return { success: true };
 }
 
 /**
- * Admin Settings: Update Credentials
+ * Admin: Update system configuration.
  */
-export async function updateSystemConfig(config: { adminPassword?: string, sitePassword?: string }) {
+export async function updateSystemConfig(config: { adminPassword?: string }) {
   const { firestore } = initializeFirebase();
   if (!firestore) return { success: false };
   await setDoc(doc(firestore, 'config', 'system'), config, { merge: true });

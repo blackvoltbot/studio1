@@ -1,12 +1,26 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, History, Trash2, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode } from 'lucide-react';
+import { 
+  Search, 
+  History, 
+  Trash2, 
+  Fingerprint, 
+  Database, 
+  FileText, 
+  CheckCircle2, 
+  Clock, 
+  XCircle, 
+  QrCode, 
+  Coins, 
+  CreditCard,
+  AlertTriangle
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { performLookup, createPaymentRequest } from '@/app/lib/lookup-actions';
+import { performLookupWithDeduction, requestCoinPackage } from '@/app/lib/lookup-actions';
 import { doc } from 'firebase/firestore';
 import { useFirestore, useDoc } from '@/firebase';
 
@@ -17,23 +31,29 @@ interface SearchRecord {
   data: any;
 }
 
+const COIN_PACKAGES = [
+  { amount: 50, coins: 20, label: "Starter" },
+  { amount: 100, coins: 45, label: "Standard" },
+  { amount: 500, coins: 300, label: "Pro" },
+  { amount: 1000, coins: 900, label: "Enterprise" }
+];
+
 export const IntelligenceCenter: React.FC = () => {
   const [mounted, setMounted] = useState(false);
   const [number, setNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [history, setHistory] = useState<SearchRecord[]>([]);
   const [currentResult, setCurrentResult] = useState<SearchRecord | null>(null);
-  
-  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
-  const [isProcessingRequest, setIsProcessingRequest] = useState(false);
+  const [isRequesting, setIsRequesting] = useState<number | null>(null);
+  const [userPhone, setUserPhone] = useState<string | null>(null);
   
   const { toast } = useToast();
   const db = useFirestore();
 
   useEffect(() => {
     setMounted(true);
-    const lastReq = localStorage.getItem('bd_active_request');
-    if (lastReq) setActiveRequestId(lastReq);
+    const phone = localStorage.getItem('bd_user_phone');
+    if (phone) setUserPhone(phone);
 
     const saved = localStorage.getItem('black_detail_history');
     if (saved) {
@@ -45,49 +65,39 @@ export const IntelligenceCenter: React.FC = () => {
     }
   }, []);
 
-  const requestRef = useMemo(() => {
-    if (!db || !activeRequestId) return null;
-    return doc(db, 'requests', activeRequestId);
-  }, [db, activeRequestId]);
+  const userRef = useMemo(() => {
+    if (!db || !userPhone) return null;
+    return doc(db, 'users', userPhone);
+  }, [db, userPhone]);
 
-  const { data: requestData, loading: requestLoading } = useDoc(requestRef);
+  const { data: userData, loading: userLoading } = useDoc(userRef);
 
-  // Access Logic
-  const isApproved = requestData?.status === 'approved';
-  const isUsed = requestData?.used === true;
-  const canSearch = isApproved && !isUsed;
+  const currentCoins = userData?.coins || 0;
+  const canSearch = currentCoins >= 5;
 
-  const handlePayAndUnlock = async () => {
-    if (isProcessingRequest) return;
-    
-    setIsProcessingRequest(true);
-    const newId = Math.random().toString(36).substring(2, 10).toUpperCase();
-    
+  const handlePurchase = async (pkg: typeof COIN_PACKAGES[0]) => {
+    if (!userPhone) return;
+    setIsRequesting(pkg.amount);
     try {
-      const res = await createPaymentRequest(newId);
+      const res = await requestCoinPackage(userPhone, pkg);
       if (res.success) {
-        setActiveRequestId(newId);
-        localStorage.setItem('bd_active_request', newId);
         toast({ 
           title: "Request Transmitted", 
-          description: "Payment verification initialized. Waiting for admin." 
+          description: `Transaction ID ${res.transactionId} pending admin approval.` 
         });
       }
     } catch (e: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Link Failure", 
-        description: "Could not establish secure request link." 
-      });
+      toast({ variant: "destructive", title: "Link Failure", description: "Transmission failed." });
     } finally {
-      setIsProcessingRequest(false);
+      setIsRequesting(null);
     }
   };
 
   const handleLookup = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (!userPhone) return;
     if (!canSearch) {
-      toast({ variant: "destructive", title: "Access Locked", description: "Authorization required." });
+      toast({ variant: "destructive", title: "Insufficient Coins", description: "At least 5 coins required for scan." });
       return;
     }
     if (!number || number.length < 5) {
@@ -97,7 +107,7 @@ export const IntelligenceCenter: React.FC = () => {
 
     setIsSearching(true);
     try {
-      const result = await performLookup(number, activeRequestId!);
+      const result = await performLookupWithDeduction(userPhone, number);
 
       if (result.success) {
         const newRecord: SearchRecord = {
@@ -114,16 +124,12 @@ export const IntelligenceCenter: React.FC = () => {
           return updated;
         });
 
-        // Clear session after successful use to prevent reuse
-        setActiveRequestId(null);
-        localStorage.removeItem('bd_active_request');
-
-        toast({ title: "Scan Complete", description: "Authorization used." });
+        toast({ title: "Scan Complete", description: "5 Coins deducted from terminal." });
       } else {
         toast({ variant: "destructive", title: "Scan Failed", description: result.error });
       }
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Error", description: err.message });
+      toast({ variant: "destructive", title: "Operational Error", description: err.message });
     } finally {
       setIsSearching(false);
     }
@@ -132,7 +138,7 @@ export const IntelligenceCenter: React.FC = () => {
   const clearHistory = () => {
     setHistory([]);
     localStorage.removeItem('black_detail_history');
-    toast({ title: "Logs Cleared" });
+    toast({ title: "Operation Logs Purged" });
   };
 
   if (!mounted) return null;
@@ -141,79 +147,69 @@ export const IntelligenceCenter: React.FC = () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-6">
         
-        <Card className="glass-card border-primary/20 overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <QrCode className="w-24 h-24 text-primary" />
-          </div>
-          <CardHeader>
+        {/* Coin Balance & Wallet */}
+        <Card className="glass-card border-primary/20 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
-              <Database className="w-5 h-5 text-primary" />
-              ACCESS_INTERFACE
+              <Coins className="w-5 h-5 text-primary" />
+              TERMINAL_WALLET
             </CardTitle>
+            <div className="flex items-center gap-3 bg-primary/10 px-4 py-2 rounded-lg border border-primary/20">
+              <p className="text-2xl font-bold font-code text-primary">{currentCoins}</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-code">Credits</p>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6 flex flex-col items-center">
-            
-            <div className="relative group p-2 bg-white rounded-xl">
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {COIN_PACKAGES.map((pkg) => (
+                <button
+                  key={pkg.amount}
+                  disabled={isRequesting !== null}
+                  onClick={() => handlePurchase(pkg)}
+                  className="flex flex-col items-center gap-2 p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-primary/5 hover:border-primary/40 transition-all group disabled:opacity-50"
+                >
+                  <p className="text-[10px] text-muted-foreground uppercase font-code group-hover:text-primary">{pkg.label}</p>
+                  <p className="text-xl font-bold text-foreground">₹{pkg.amount}</p>
+                  <p className="text-[10px] text-primary font-bold uppercase">{pkg.coins} Coins</p>
+                  <CreditCard className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors mt-1" />
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col items-center justify-center p-6 bg-primary/5 rounded-2xl border border-primary/10 relative">
+              <div className="absolute top-0 right-0 p-4 opacity-5">
+                <QrCode className="w-16 h-16 text-primary" />
+              </div>
               <img 
                 src="https://i.ibb.co/W4ZwkjYy/f1421dab-de96-46fe-bbb9-c66202f3fe1e.jpg"
                 alt="Payment QR"
-                width="200"
-                height="200"
-                className="rounded-lg shadow-2xl"
+                width="150"
+                height="150"
+                className="rounded-lg shadow-2xl mb-4 border-2 border-primary/20"
+                data-ai-hint="payment qr"
               />
-            </div>
-
-            <div className="text-center space-y-1">
-              <p className="text-xl font-bold tracking-widest text-primary uppercase">Scan to Pay ₹5</p>
-              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em]">SECURE_UPI_GATEWAY</p>
-            </div>
-
-            <div className="w-full max-w-sm space-y-4">
-              <Button 
-                onClick={handlePayAndUnlock}
-                disabled={isProcessingRequest || (activeRequestId !== null && requestData?.status === 'pending')}
-                className="w-full bg-primary hover:bg-primary/80 font-bold tracking-widest h-12 shadow-[0_0_20px_rgba(255,0,0,0.2)] pulse-red"
-              >
-                {isProcessingRequest ? "ESTABLISHING..." : 
-                 (activeRequestId && requestData?.status === 'pending') ? "AWAITING APPROVAL" : "Pay & Unlock"}
-              </Button>
-
-              {activeRequestId && requestData?.status === 'pending' && (
-                <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg w-full">
-                  <Clock className="w-6 h-6 text-primary animate-pulse" />
-                  <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold text-center">Awaiting Approval</p>
-                  <div className="text-center space-y-1">
-                    <p className="text-[10px] text-muted-foreground font-code uppercase">Tracking ID: {activeRequestId}</p>
-                    <p className="text-[9px] text-muted-foreground/60 font-code uppercase animate-pulse">Synchronizing with Admin Core...</p>
-                  </div>
-                </div>
-              )}
-
-              {canSearch && (
-                <div className="flex flex-col items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg w-full">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                  <p className="text-sm font-headline tracking-widest text-emerald-500 uppercase font-bold text-center">Authorization Granted</p>
-                  <p className="text-[10px] text-muted-foreground font-code uppercase">Scanner Ready</p>
-                </div>
-              )}
-
-              {requestData?.status === 'declined' && (
-                <div className="flex flex-col items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg w-full">
-                  <XCircle className="w-6 h-6 text-destructive" />
-                  <p className="text-sm font-headline tracking-widest text-destructive uppercase font-bold text-center">Access Denied</p>
-                  <p className="text-[10px] text-muted-foreground font-code uppercase text-center">Verify payment and try again</p>
-                </div>
-              )}
+              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em] text-center">
+                Scan & Select Package Above
+              </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-40 grayscale pointer-events-none' : 'red-glow-hover'}`}>
+        {/* Intel Scanner */}
+        <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-50 grayscale' : 'red-glow-hover'}`}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
-              <Fingerprint className="w-5 h-5 text-primary" />
-              INTEL_SCANNER
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
+                <Fingerprint className="w-5 h-5 text-primary" />
+                INTEL_SCANNER
+              </CardTitle>
+              {!canSearch && (
+                <div className="flex items-center gap-2 text-destructive text-[10px] font-code uppercase animate-pulse">
+                  <AlertTriangle className="w-3 h-3" />
+                  RELOAD_REQUIRED
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-4">
@@ -232,7 +228,7 @@ export const IntelligenceCenter: React.FC = () => {
                 disabled={!canSearch || isSearching}
                 className="bg-primary hover:bg-primary/80 min-w-[140px] h-12 font-bold uppercase tracking-widest"
               >
-                {isSearching ? "SCANNING..." : "SEARCH"}
+                {isSearching ? "SCANNING..." : "SEARCH [5C]"}
               </Button>
             </form>
           </CardContent>
@@ -269,7 +265,7 @@ export const IntelligenceCenter: React.FC = () => {
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
                 <FileText className="w-12 h-12 mb-2" />
-                <p className="text-xs font-code uppercase">No Logs</p>
+                <p className="text-xs font-code uppercase">Empty Logs</p>
               </div>
             ) : (
               <div className="space-y-2">

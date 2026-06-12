@@ -1,38 +1,52 @@
-
 {
   "entities": {
-    "Request": {
-      "title": "Access Request",
-      "description": "User request for intelligence scan access.",
+    "User": {
+      "title": "User Account",
+      "description": "User profile with coin balance and credentials.",
       "type": "object",
       "properties": {
-        "requestId": { "type": "string" },
         "phoneNumber": { "type": "string" },
-        "paymentStatus": { "type": "string", "enum": ["pending", "paid"] },
-        "status": { "type": "string", "enum": ["pending", "approved", "declined"] },
-        "createdAt": { "type": "number" },
-        "used": { "type": "boolean" }
+        "password": { "type": "string" },
+        "coins": { "type": "number", "default": 0 },
+        "createdAt": { "type": "number" }
       },
-      "required": ["requestId", "status", "createdAt", "used"]
+      "required": ["phoneNumber", "password", "coins", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Coin Transaction",
+      "description": "Request for coin purchase.",
+      "type": "object",
+      "properties": {
+        "transactionId": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "amount": { "type": "number" },
+        "coins": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "declined"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["transactionId", "userPhone", "amount", "coins", "status", "createdAt"]
     },
     "SystemConfig": {
       "title": "System Configuration",
-      "description": "Global passwords and system-wide settings.",
+      "description": "Master credentials for admin and global settings.",
       "type": "object",
       "properties": {
-        "adminPassword": { "type": "string" },
-        "sitePassword": { "type": "string" }
+        "adminPassword": { "type": "string" }
       },
-      "required": ["adminPassword", "sitePassword"]
+      "required": ["adminPassword"]
     }
   },
   "auth": {
     "providers": ["password"]
   },
   "firestore": {
-    "/requests/{requestId}": {
-      "schema": "Request",
-      "description": "Intelligence access requests."
+    "/users/{phone}": {
+      "schema": "User",
+      "description": "User accounts keyed by phone number."
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Coin purchase requests."
     },
     "/config/system": {
       "schema": "SystemConfig",
