@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -37,12 +36,21 @@ export default function AdminDashboardPage() {
   const [newSitePass, setNewSitePass] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
+  const { data: config } = useDoc(configRef);
+
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== 'undefined' && !localStorage.getItem('admin_auth_token')) {
-      router.push('/admin/login');
+  }, []);
+
+  useEffect(() => {
+    if (mounted && config) {
+      const storedToken = localStorage.getItem('admin_auth_token');
+      if (!storedToken || storedToken !== config.adminPassword) {
+        router.push('/admin/login');
+      }
     }
-  }, [router]);
+  }, [mounted, config, router]);
 
   const requestsQuery = useMemo(() => {
     if (!db) return null;
@@ -50,9 +58,6 @@ export default function AdminDashboardPage() {
   }, [db]);
 
   const { data: requests, loading: reqLoading } = useCollection(requestsQuery);
-
-  const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
-  const { data: config } = useDoc(configRef);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_auth_token');
@@ -85,6 +90,10 @@ export default function AdminDashboardPage() {
       if (Object.keys(updates).length > 0) {
         await updateSystemConfig(updates);
         toast({ title: "Updated", description: "System credentials modified successfully." });
+        
+        // If admin pass changed, update local storage to prevent auto-logout
+        if (newAdminPass) localStorage.setItem('admin_auth_token', newAdminPass);
+        
         setNewAdminPass('');
         setNewSitePass('');
       }

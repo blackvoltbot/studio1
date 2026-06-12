@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -45,6 +44,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
         setIsAuthenticated(false);
       }
     } else {
+      // If config is null and no error, we need bootstrap
       if (!configError) {
         setIsAuthenticated(false);
       }
@@ -72,7 +72,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     try {
       await setDoc(doc(db, 'config', 'system'), {
         adminPassword: 'Guru112511@G@G',
-        sitePassword: 'Admin123'
+        sitePassword: '1234'
       });
       toast({ title: "System Ready", description: "Security config initialized." });
     } catch (e: any) {
@@ -83,6 +83,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
 
   if (!mounted) return null;
 
+  // Handle stuck initializing state
   if (configLoading || (db && !config && !configError && isAuthenticated === null)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -107,6 +108,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     );
   }
 
+  // Handle missing config (Bootstrap)
   if (!config && !configLoading && db) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -24,13 +23,19 @@ export default function AdminLoginPage() {
   useEffect(() => {
     // Check if already logged in
     if (typeof window !== 'undefined' && localStorage.getItem('admin_auth_token')) {
-      router.push('/admin/dashboard');
+      const storedToken = localStorage.getItem('admin_auth_token');
+      if (config && storedToken === config.adminPassword) {
+        router.push('/admin/dashboard');
+      }
     }
-  }, [router]);
+  }, [router, config]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!config) return;
+    if (!config) {
+      toast({ variant: "destructive", title: "Error", description: "System configuration not loaded." });
+      return;
+    }
 
     setLoading(true);
     if (password === config.adminPassword) {
