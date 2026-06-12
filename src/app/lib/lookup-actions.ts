@@ -1,7 +1,7 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
@@ -57,7 +57,7 @@ export async function performLookup(number: string, requestId?: string) {
  */
 export async function createPaymentRequest(requestId: string, sessionId: string, host: string) {
   const { firestore } = initializeFirebase();
-  if (!firestore) throw new Error('DB connection failed');
+  if (!firestore) throw new Error('Database initialization failure');
 
   const now = new Date();
   const timestamp = now.getTime();
@@ -71,36 +71,35 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
     amount: 5
   });
 
-  // 2. Prepare Telegram message
+  // 2. Prepare Telegram notification
   const dateStr = now.toLocaleDateString();
   const timeStr = now.toLocaleTimeString();
   
   const message = `
 🚨 *NEW PAYMENT REQUEST*
-🆔 Request ID: ${requestId}
-📅 Date: ${dateStr}
-🕒 Time: ${timeStr}
-👤 Session: ${sessionId}
-💰 Amount: ₹5
-📊 Status: Waiting Approval
+🆔 *ID:* \`${requestId}\`
+📅 *Date:* ${dateStr}
+🕒 *Time:* ${timeStr}
+💰 *Amount:* ₹5
+📊 *Status:* WAITING APPROVAL
 
-_Use buttons below for instant callback approval, or use the Admin Terminal._
+_Awaiting administrative authorization core._
   `.trim();
 
-  // Use callback_data for "real callback buttons" as requested
+  // Use callback_data for one-tap approval within Telegram
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '✅ Approve', callback_data: `approve_${requestId}` },
-        { text: '❌ Decline', callback_data: `decline_${requestId}` }
+        { text: '✅ APPROVE', callback_data: `approve_${requestId}` },
+        { text: '❌ DECLINE', callback_data: `decline_${requestId}` }
       ],
       [
-        { text: '🖥️ Open Admin Terminal', url: `https://${host}/admin/dashboard` }
+        { text: '🖥️ OPEN ADMIN TERMINAL', url: `https://${host}/admin/dashboard` }
       ]
     ]
   };
 
-  // 3. Send to Telegram
+  // 3. Dispatch to Telegram
   try {
     await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -113,7 +112,7 @@ _Use buttons below for instant callback approval, or use the Admin Terminal._
       })
     });
   } catch (e) {
-    console.error('Telegram notification failed:', e);
+    console.error('Telegram notification dispatch failed:', e);
   }
 
   return { success: true };

@@ -47,4 +47,4 @@ export function initializeFirebase() {
  */
 export const isFirebaseConfigValid = () => {
   return !!firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10;
-};
+}

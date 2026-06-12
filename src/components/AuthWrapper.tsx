@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
-import { ShieldAlert, Cpu, Lock, Terminal, ShieldCheck, AlertCircle } from 'lucide-react';
+import { ShieldAlert, Cpu, Lock, Terminal, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -55,6 +55,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
         setIsAuthenticated(false);
       }
     } else {
+      // Document missing
       if (!settingsError) {
         setIsAuthenticated(false);
       }
@@ -92,21 +93,22 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     setIsVerifying(false);
   };
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Cpu className="w-12 h-12 text-primary animate-pulse" />
-      </div>
-    );
-  }
+  if (!mounted) return null;
 
   // Show Loading while strictly verifying
   if (settingsLoading || (db && !settings && !settingsError && isAuthenticated === null)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="relative">
-          <Cpu className="w-12 h-12 text-primary animate-pulse" />
-          <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-code text-primary/50 uppercase tracking-[0.2em]">Synchronizing Core...</p>
+        <div className="relative flex flex-col items-center">
+          <Cpu className="w-12 h-12 text-primary animate-pulse mb-4" />
+          <p className="text-[10px] font-code text-primary uppercase tracking-[0.2em]">Synchronizing Core...</p>
+          <Button 
+            variant="link" 
+            className="mt-8 text-[9px] text-muted-foreground uppercase opacity-40 hover:opacity-100"
+            onClick={() => window.location.reload()}
+          >
+            Force Refresh
+          </Button>
         </div>
       </div>
     );
@@ -121,15 +123,16 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
             <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
             <CardTitle className="text-destructive font-headline tracking-widest uppercase">Connection Error</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Button onClick={() => window.location.reload()} className="w-full">RETRY CONNECTION</Button>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground font-code">Unable to establish link with secure database.</p>
+            <Button onClick={() => window.location.reload()} className="w-full bg-destructive/80">RETRY CONNECTION</Button>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // Bootstrap UI
+  // Bootstrap UI (Document missing)
   if (!settings && !settingsLoading && db) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
@@ -159,15 +162,15 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
           <CardHeader className="text-center">
             <CardTitle className="text-5xl font-headline text-glow-red mb-4">BLACK DETAIL</CardTitle>
             <CardDescription className="text-muted-foreground font-code uppercase tracking-widest text-xs flex items-center justify-center gap-2">
-              <Lock className="w-3 h-3 text-primary" /> Enter Website Password
+              <Lock className="w-3 h-3 text-primary" /> Security Cipher Required
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <Input
                 type="password"
-                placeholder="Enter Website Password"
-                className="bg-black/50 border-primary/20 text-center text-primary font-code"
+                placeholder="Enter Terminal Cipher"
+                className="bg-black/50 border-primary/20 text-center text-primary font-code h-12"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 disabled={isVerifying}

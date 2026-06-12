@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, History, Trash2, Copy, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode } from 'lucide-react';
+import { Search, History, Trash2, Copy, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode, ShieldAlert } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -43,6 +43,10 @@ export const IntelligenceCenter: React.FC = () => {
     }
     setSessionId(sId);
 
+    // Restore last active request ID if any
+    const lastReq = localStorage.getItem('bd_active_request');
+    if (lastReq) setActiveRequestId(lastReq);
+
     // Load History
     const saved = localStorage.getItem('black_detail_history');
     if (saved) {
@@ -52,10 +56,6 @@ export const IntelligenceCenter: React.FC = () => {
         setHistory([]);
       }
     }
-
-    // Restore last active request ID if any
-    const lastReq = localStorage.getItem('bd_active_request');
-    if (lastReq) setActiveRequestId(lastReq);
   }, []);
 
   const requestRef = useMemo(() => {
@@ -70,16 +70,18 @@ export const IntelligenceCenter: React.FC = () => {
 
   // Watch for approval changes to show toast
   useEffect(() => {
-    if (requestData?.status === 'APPROVED') {
+    if (!requestData) return;
+
+    if (requestData.status === 'APPROVED') {
       toast({
-        title: "PAYMENT APPROVED",
-        description: "Search access granted. Proceed with intelligence scan.",
+        title: "AUTHORIZATION GRANTED",
+        description: "Core access enabled. Proceed with intelligence scan.",
       });
-    } else if (requestData?.status === 'DECLINED') {
+    } else if (requestData.status === 'DECLINED') {
       toast({
         variant: "destructive",
-        title: "PAYMENT DECLINED",
-        description: "Access denied by administrative command.",
+        title: "ACCESS DENIED",
+        description: "Administrative override declined authorization.",
       });
     }
   }, [requestData?.status, toast]);
@@ -95,13 +97,13 @@ export const IntelligenceCenter: React.FC = () => {
       localStorage.setItem('bd_active_request', newRequestId);
       
       toast({
-        title: "Request Sent",
-        description: "Admin terminal notified. Awaiting core approval."
+        title: "Request Transmitted",
+        description: "Admin terminal notified. Awaiting security core approval."
       });
     } catch (e: any) {
       toast({
         variant: "destructive",
-        title: "Payment Error",
+        title: "Transmission Error",
         description: e.message
       });
     } finally {
@@ -112,11 +114,11 @@ export const IntelligenceCenter: React.FC = () => {
   const handleLookup = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!canSearch || !activeRequestId) {
-      toast({ variant: "destructive", title: "Access Denied", description: "Authorization required." });
+      toast({ variant: "destructive", title: "Access Locked", description: "Authorization sequence required." });
       return;
     }
     if (!number || number.length < 5) {
-      toast({ variant: "destructive", title: "Invalid Target", description: "Enter a valid scan target." });
+      toast({ variant: "destructive", title: "Invalid Scan Target", description: "Enter a valid mobile identifier." });
       return;
     }
 
@@ -136,30 +138,30 @@ export const IntelligenceCenter: React.FC = () => {
 
         setCurrentResult(newRecord);
         
-        // Update local history
-        setHistory(prevHistory => {
-          const updated = [newRecord, ...prevHistory.filter(h => h.number !== newRecord.number)].slice(0, 50);
+        // Update local logs
+        setHistory(prev => {
+          const updated = [newRecord, ...prev.filter(h => h.number !== newRecord.number)].slice(0, 50);
           localStorage.setItem('black_detail_history', JSON.stringify(updated));
           return updated;
         });
 
-        // Reset payment state locally immediately
+        // Clear local payment session
         setActiveRequestId(null);
         localStorage.removeItem('bd_active_request');
 
         toast({ 
-          title: "Lookup Successful", 
-          description: `Intelligence retrieved. Credit invalidated.` 
+          title: "Scan Complete", 
+          description: "Intelligence retrieved. Authorization invalidated." 
         });
       } else {
         toast({ 
           variant: "destructive", 
-          title: "Search Failed", 
-          description: result.error || "Operational timeout." 
+          title: "Link Timeout", 
+          description: result.error || "Operational failure in intelligence link." 
         });
       }
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Core Error", description: err.message });
+      toast({ variant: "destructive", title: "System Error", description: err.message });
     } finally {
       setIsSearching(false);
     }
@@ -168,21 +170,23 @@ export const IntelligenceCenter: React.FC = () => {
   const clearHistory = () => {
     setHistory([]);
     localStorage.removeItem('black_detail_history');
-    toast({ title: "Logs Cleared" });
+    toast({ title: "Operational Logs Cleared" });
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Copied to Clipboard" });
+    toast({ title: "Copied to Buffer" });
   };
 
   if (!mounted) return null;
+
+  const showPaidButton = !requestData || requestData.status === 'USED' || requestData.status === 'DECLINED';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-6">
         
-        {/* Payment & QR Section */}
+        {/* Payment & Access Core */}
         <Card className="glass-card border-primary/20 overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <QrCode className="w-24 h-24 text-primary" />
@@ -190,7 +194,7 @@ export const IntelligenceCenter: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
               <Database className="w-5 h-5 text-primary" />
-              OPERATIONAL ACCESS CONTROL
+              ACCESS CONTROL INTERFACE
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 flex flex-col items-center">
@@ -207,33 +211,32 @@ export const IntelligenceCenter: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1">
-              <p className="text-xl font-bold tracking-widest text-primary uppercase">Pay ₹5 To Search</p>
-              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em]">UPI Identity Authentication Required</p>
+              <p className="text-xl font-bold tracking-widest text-primary uppercase">Pay ₹5 Per Scan</p>
+              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em]">UPI IDENTITY VERIFICATION REQUIRED</p>
             </div>
 
             <div className="w-full max-w-sm space-y-4">
-              {(!requestData || requestData.status === 'USED' || requestData.status === 'DECLINED') && (
+              {showPaidButton && (
                 <Button 
                   onClick={handlePaidClick}
                   disabled={isPaying}
                   className="w-full bg-primary hover:bg-primary/80 font-bold tracking-widest h-12 shadow-[0_0_20px_rgba(255,0,0,0.2)]"
                 >
-                  {isPaying ? "INITIALIZING REQUEST..." : "✅ I'VE PAID"}
+                  {isPaying ? "INITIALIZING..." : "✅ I'VE PAID"}
                 </Button>
               )}
 
               {requestData?.status === 'WAITING_APPROVAL' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg animate-pulse">
                   <Clock className="w-6 h-6 text-primary" />
-                  <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold">Waiting For Admin Approval</p>
-                  <p className="text-[10px] text-muted-foreground font-code">REQ_ID: {activeRequestId?.slice(0, 8)}</p>
-                  <p className="text-[9px] text-muted-foreground font-code italic">Checking core status in real-time...</p>
+                  <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold text-center">Awaiting Admin Authorization</p>
+                  <p className="text-[10px] text-muted-foreground font-code uppercase">Req ID: {activeRequestId?.slice(0, 8)}</p>
                   <Button 
                     variant="link" 
                     className="text-[10px] text-primary/60 font-code uppercase"
                     onClick={() => { setActiveRequestId(null); localStorage.removeItem('bd_active_request'); }}
                   >
-                    Stuck? Reset Session
+                    Reset Terminal Session
                   </Button>
                 </div>
               )}
@@ -241,21 +244,21 @@ export const IntelligenceCenter: React.FC = () => {
               {requestData?.status === 'APPROVED' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.1)]">
                   <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                  <p className="text-sm font-headline tracking-widest text-emerald-500 uppercase font-bold">Approved</p>
-                  <p className="text-[10px] text-emerald-500/60 font-code">Authorization granted for single lookup</p>
+                  <p className="text-sm font-headline tracking-widest text-emerald-500 uppercase font-bold text-center">Authorization Approved</p>
+                  <p className="text-[10px] text-emerald-500/60 font-code uppercase">Terminal Unlocked for single scan</p>
                 </div>
               )}
 
               {requestData?.status === 'DECLINED' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
                   <XCircle className="w-6 h-6 text-destructive" />
-                  <p className="text-sm font-headline tracking-widest text-destructive uppercase font-bold">Request Declined</p>
+                  <p className="text-sm font-headline tracking-widest text-destructive uppercase font-bold text-center">Authorization Declined</p>
                   <Button 
                     variant="link" 
                     className="text-[10px] text-destructive/60 font-code uppercase"
                     onClick={() => { setActiveRequestId(null); localStorage.removeItem('bd_active_request'); }}
                   >
-                    Generate New Payment
+                    Initiate New Payment Request
                   </Button>
                 </div>
               )}
@@ -264,7 +267,7 @@ export const IntelligenceCenter: React.FC = () => {
         </Card>
 
         {/* Search Scanner */}
-        <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-40 grayscale pointer-events-none' : 'red-glow-hover'}`}>
+        <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-40 grayscale pointer-events-none' : 'red-glow-hover shadow-[0_0_20px_rgba(255,0,0,0.1)]'}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
               <Fingerprint className="w-5 h-5 text-primary" />
@@ -275,7 +278,7 @@ export const IntelligenceCenter: React.FC = () => {
             <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Input
-                  placeholder="SCAN_TARGET_PHONE"
+                  placeholder="TARGET_IDENTIFIER"
                   className="bg-black/40 border-primary/30 text-primary font-code focus:border-primary pl-10 h-12"
                   value={number}
                   onChange={(e) => setNumber(e.target.value)}
@@ -293,7 +296,7 @@ export const IntelligenceCenter: React.FC = () => {
             </form>
             {!canSearch && (
               <p className="text-[10px] text-muted-foreground font-code mt-4 text-center uppercase tracking-widest opacity-60">
-                LOCKED: Authorization sequence pending administrative approval
+                LOCKED: AUTHENTICATION SEQUENCE PENDING ADMIN APPROVAL
               </p>
             )}
           </CardContent>
@@ -348,7 +351,7 @@ export const IntelligenceCenter: React.FC = () => {
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
                 <FileText className="w-12 h-12 mb-2" />
-                <p className="text-xs font-code uppercase tracking-tighter">No active logs detected</p>
+                <p className="text-xs font-code uppercase tracking-widest">No Active Logs Detected</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -364,7 +367,7 @@ export const IntelligenceCenter: React.FC = () => {
                   >
                     <div>
                       <p className={`text-sm font-code ${currentResult?.id === record.id ? 'text-primary' : 'text-foreground/80'}`}>{record.number}</p>
-                      <p className="text-[10px] text-muted-foreground font-code mt-0.5">
+                      <p className="text-[10px] text-muted-foreground font-code mt-0.5 uppercase tracking-widest">
                         {new Date(record.timestamp).toLocaleTimeString()}
                       </p>
                     </div>

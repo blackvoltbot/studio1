@@ -17,6 +17,8 @@ export async function POST(req: NextRequest) {
     }
 
     const data = callbackQuery.data; // e.g., "approve_uuid"
+    if (!data) return NextResponse.json({ ok: true });
+
     const [action, requestId] = data.split('_');
 
     if (!action || !requestId) {
@@ -24,35 +26,38 @@ export async function POST(req: NextRequest) {
     }
 
     const { firestore } = initializeFirebase();
-    if (!firestore) throw new Error('Firestore not initialized');
+    if (!firestore) throw new Error('Firestore initialization failed');
 
     const requestRef = doc(firestore, 'payment_requests', requestId);
     const requestSnap = await getDoc(requestRef);
 
     if (!requestSnap.exists()) {
-      await answerCallbackQuery(callbackQuery.id, "Error: Request not found in database.");
+      await answerCallbackQuery(callbackQuery.id, "Error: Request record not found in data core.");
       return NextResponse.json({ ok: true });
     }
 
     const newStatus = action === 'approve' ? 'APPROVED' : 'DECLINED';
+    
+    // Update Firestore status
     await updateDoc(requestRef, { status: newStatus });
 
     // Acknowledge the callback in Telegram
     await answerCallbackQuery(
       callbackQuery.id, 
-      `Request ${newStatus.toLowerCase()} successfully.`
+      `SYSTEM: Request ${newStatus.toLowerCase()} successfully.`
     );
 
     // Update the message text to show the action was taken
+    const timestamp = new Date().toLocaleTimeString();
     await editMessageText(
       callbackQuery.message.chat.id,
       callbackQuery.message.message_id,
-      `${callbackQuery.message.text}\n\n✅ **ACTION EXECUTED: ${newStatus}**`
+      `${callbackQuery.message.text}\n\n✅ *ACTION EXECUTED: ${newStatus}*\n🕒 *Processed:* ${timestamp}`
     );
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error('Webhook Error:', error);
+    console.error('Webhook Operational Failure:', error);
     return NextResponse.json({ ok: false, error: error.message });
   }
 }
