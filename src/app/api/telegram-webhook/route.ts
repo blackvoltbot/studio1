@@ -5,8 +5,8 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 
 /**
- * Handles Telegram callback queries for real inline buttons.
- * Responds to callback_data: approve_{requestId} or decline_{requestId}
+ * Handles Telegram callback queries for approval/decline actions.
+ * callback_data format: pay_ok_{requestId} or pay_no_{requestId}
  */
 export async function POST(req: NextRequest) {
   try {
@@ -17,55 +17,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const data = callbackQuery.data; // e.g., "approve_uuid"
+    const data = callbackQuery.data; // e.g., "pay_ok_uuid"
     if (!data) return NextResponse.json({ ok: true });
 
-    // Robust parsing of action and requestId
-    const action = data.startsWith('approve_') ? 'approve' : data.startsWith('decline_') ? 'decline' : null;
-    const requestId = action ? data.substring(action.length + 1) : null;
+    // Robust parsing using split
+    const parts = data.split('_');
+    const actionKey = parts[1]; // "ok" or "no"
+    const requestId = parts[2]; // the uuid
 
-    if (!action || !requestId) {
-      console.error('Invalid callback data format:', data);
+    if (!actionKey || !requestId) {
+      console.error('[WEBHOOK] Invalid callback data format:', data);
       return NextResponse.json({ ok: true });
     }
 
     const { firestore } = initializeFirebase();
     if (!firestore) throw new Error('Firestore initialization failed');
 
-    // Fetch from /payment_requests/{requestId}
+    console.log(`[WEBHOOK] Processing ${actionKey} for Request: ${requestId}`);
+
+    // Verify document existence in /payment_requests/{requestId}
     const requestRef = doc(firestore, 'payment_requests', requestId);
     const requestSnap = await getDoc(requestRef);
 
     if (!requestSnap.exists()) {
-      console.error(`Request ID ${requestId} not found in collection 'payment_requests'`);
-      await answerCallbackQuery(callbackQuery.id, "Error: Request not found. Verify collection name.");
+      console.error(`[WEBHOOK] RECORD_NOT_FOUND: Request ID ${requestId} missing in 'payment_requests' collection.`);
+      await answerCallbackQuery(callbackQuery.id, "❌ Error: Request record not found in database.");
       return NextResponse.json({ ok: true });
     }
 
-    const newStatus = action === 'approve' ? 'APPROVED' : 'DECLINED';
+    const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
     
-    // Update Firestore status
+    // Execute status update
     await updateDoc(requestRef, { status: newStatus });
 
-    // Acknowledge the callback in Telegram
+    // Notify Admin in Telegram
     await answerCallbackQuery(
       callbackQuery.id, 
-      `SYSTEM: Request ${newStatus} successfully.`
+      `SYSTEM: ${newStatus} sequence executed.`
     );
 
-    // Update the message text to show the action was taken
+    // Update message UI
     const timestamp = new Date().toLocaleTimeString();
     const statusIcon = newStatus === 'APPROVED' ? '✅' : '❌';
     
     await editMessageText(
       callbackQuery.message.chat.id,
       callbackQuery.message.message_id,
-      `${callbackQuery.message.text}\n\n${statusIcon} *ACTION EXECUTED: ${newStatus}*\n🕒 *Processed:* ${timestamp}`
+      `${callbackQuery.message.text}\n\n${statusIcon} *STATUS: ${newStatus}*\n🕒 *Processed:* ${timestamp}`
     );
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error('Webhook Operational Failure:', error);
+    console.error('[WEBHOOK] Critical Failure:', error);
     return NextResponse.json({ ok: false, error: error.message });
   }
 }

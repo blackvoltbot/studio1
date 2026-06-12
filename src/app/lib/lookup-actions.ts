@@ -1,7 +1,7 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
-import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
@@ -63,6 +63,7 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
   const timestamp = now.getTime();
 
   // 1. Save to Firestore (Path: /payment_requests/{requestId})
+  // This must be completed before the Telegram notification is sent
   await setDoc(doc(firestore, 'payment_requests', requestId), {
     requestId,
     sessionId,
@@ -86,12 +87,12 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
 _Awaiting administrative authorization core._
   `.trim();
 
-  // Use callback_data for one-tap approval within Telegram
+  // callback_data format must match the webhook parser
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '✅ APPROVE', callback_data: `approve_${requestId}` },
-        { text: '❌ DECLINE', callback_data: `decline_${requestId}` }
+        { text: '✅ APPROVE', callback_data: `pay_ok_${requestId}` },
+        { text: '❌ DECLINE', callback_data: `pay_no_${requestId}` }
       ]
     ]
   };
