@@ -65,7 +65,7 @@ export const IntelligenceCenter: React.FC = () => {
     return doc(db, 'payment_requests', activeRequestId);
   }, [db, activeRequestId]);
 
-  const { data: requestData, loading: requestLoading } = useDoc(requestRef);
+  const { data: requestData } = useDoc(requestRef);
 
   const canSearch = requestData?.status === 'APPROVED';
 
@@ -73,7 +73,7 @@ export const IntelligenceCenter: React.FC = () => {
     setIsPaying(true);
     try {
       const newRequestId = crypto.randomUUID();
-      const host = window.location.host;
+      const host = typeof window !== 'undefined' ? window.location.host : '';
       await createPaymentRequest(newRequestId, sessionId, host);
       
       setActiveRequestId(newRequestId);
@@ -96,7 +96,7 @@ export const IntelligenceCenter: React.FC = () => {
 
   const handleLookup = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!canSearch) {
+    if (!canSearch || !activeRequestId) {
       toast({ variant: "destructive", title: "Access Denied", description: "Payment approval required." });
       return;
     }
@@ -108,7 +108,7 @@ export const IntelligenceCenter: React.FC = () => {
     setIsSearching(true);
     setCurrentResult(null);
 
-    const result = await performLookup(number, activeRequestId!);
+    const result = await performLookup(number, activeRequestId);
 
     if (result.success) {
       const newRecord: SearchRecord = {
@@ -121,9 +121,11 @@ export const IntelligenceCenter: React.FC = () => {
       setCurrentResult(newRecord);
       
       // Update local history
-      const updated = [newRecord, ...history.filter(h => h.number !== record.number)].slice(0, 50);
-      setHistory(updated);
-      localStorage.setItem('black_detail_history', JSON.stringify(updated));
+      setHistory(prevHistory => {
+        const updated = [newRecord, ...prevHistory.filter(h => h.number !== newRecord.number)].slice(0, 50);
+        localStorage.setItem('black_detail_history', JSON.stringify(updated));
+        return updated;
+      });
 
       // Reset payment state since it's USED
       setActiveRequestId(null);
@@ -191,7 +193,7 @@ export const IntelligenceCenter: React.FC = () => {
             </div>
 
             <div className="w-full max-w-sm space-y-4">
-              {(!requestData || requestData.status === 'USED') && (
+              {(!requestData || requestData.status === 'USED' || requestData.status === 'DECLINED') && (
                 <Button 
                   onClick={handlePaidClick}
                   disabled={isPaying}
