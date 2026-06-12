@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -266,9 +265,14 @@ export const IntelligenceCenter: React.FC = () => {
                 className="rounded-lg shadow-2xl mb-4 border-2 border-primary/20"
                 data-ai-hint="payment qr"
               />
-              <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em] text-center">
-                Scan & Select Package Above
-              </p>
+              <div className="mt-2 p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(59,130,246,0.3)] flex flex-col items-center gap-1 min-w-[200px]">
+                <p className="text-[11px] font-bold text-white tracking-wider uppercase text-center">
+                  Fake Payment Not Allowed
+                </p>
+                <p className="text-[13px] font-bold text-white tracking-wide text-center">
+                  नकली पेमेंट मान्य नहीं है
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
