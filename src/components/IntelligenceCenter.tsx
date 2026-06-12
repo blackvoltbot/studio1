@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -74,7 +73,7 @@ export const IntelligenceCenter: React.FC = () => {
     return doc(db, 'users', userPhone);
   }, [db, userPhone]);
 
-  const { data: userData, loading: userLoading } = useDoc(userRef);
+  const { data: userData } = useDoc(userRef);
 
   // Real-time listener for the user's latest transaction to show status
   const txQuery = useMemo(() => {
@@ -89,6 +88,10 @@ export const IntelligenceCenter: React.FC = () => {
 
   const { data: latestTx } = useCollection(txQuery);
   const activeTx = latestTx?.[0];
+
+  // Logic to determine if QR should be visible
+  // Only show QR if submitting or if there is a pending/recent transaction
+  const showQrSection = isSubmittingTx || (activeTx && (activeTx.status === 'pending' || (Date.now() - activeTx.processedAt < 60000)));
 
   const currentCoins = userData?.coins || 0;
   const trialUsed = userData?.trialUsed || false;
@@ -221,7 +224,7 @@ export const IntelligenceCenter: React.FC = () => {
                   <Button 
                     onClick={handleSubmitTransaction} 
                     disabled={isSubmittingTx}
-                    className="bg-primary hover:bg-primary/80 font-bold uppercase tracking-widest gap-2"
+                    className="bg-primary hover:bg-primary/80 min-w-[140px] h-12 font-bold uppercase tracking-widest gap-2"
                   >
                     {isSubmittingTx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     Submit Request
@@ -230,44 +233,55 @@ export const IntelligenceCenter: React.FC = () => {
               </div>
             )}
 
-            <div className="flex flex-col items-center justify-center p-6 bg-primary/5 rounded-2xl border border-primary/10 relative">
-              <div className="absolute top-0 right-0 p-4 opacity-5">
-                <QrCode className="w-16 h-16 text-primary" />
-              </div>
-              <img 
-                src="https://i.ibb.co/W4ZwkjYy/f1421dab-de96-46fe-bbb9-c66202f3fe1e.jpg"
-                alt="Payment QR"
-                width="150"
-                height="150"
-                className="rounded-lg shadow-2xl mb-4 border-2 border-primary/20"
-                data-ai-hint="payment qr"
-              />
-              
-              <div className="mt-2 p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(59,130,246,0.3)] flex flex-col items-center gap-1 min-w-[200px]">
-                {activeTx && activeTx.status === 'pending' ? (
-                  <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
-                    Waiting for Admin Approval
-                  </p>
-                ) : activeTx && activeTx.status === 'approved' && (Date.now() - activeTx.processedAt < 30000) ? (
-                  <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
-                    Approved - {activeTx.coins} Coins Added
-                  </p>
-                ) : activeTx && activeTx.status === 'declined' && (Date.now() - activeTx.processedAt < 30000) ? (
-                  <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
-                    Declined - Try Again
-                  </p>
-                ) : (
-                  <>
-                    <p className="text-[11px] font-bold text-white tracking-wider uppercase text-center">
+            {showQrSection && (
+              <div className="flex flex-col items-center justify-center p-8 bg-primary/5 rounded-2xl border border-primary/10 relative animate-in fade-in zoom-in duration-500">
+                <div className="absolute top-0 right-0 p-4 opacity-5">
+                  <QrCode className="w-16 h-16 text-primary" />
+                </div>
+                
+                <img 
+                  src="https://i.ibb.co/W4ZwkjYy/f1421dab-de96-46fe-bbb9-c66202f3fe1e.jpg"
+                  alt="Payment QR"
+                  width="200"
+                  height="200"
+                  className="rounded-lg shadow-[0_0_30px_rgba(242,13,13,0.3)] mb-6 border-2 border-primary/20"
+                  data-ai-hint="payment qr"
+                />
+                
+                <div className="space-y-4 w-full max-w-[300px]">
+                  {/* Real-time Status Area */}
+                  <div className="p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(242,13,13,0.2)] flex flex-col items-center gap-1">
+                    {activeTx && activeTx.status === 'pending' ? (
+                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
+                        Waiting for Admin Approval
+                      </p>
+                    ) : activeTx && activeTx.status === 'approved' ? (
+                      <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
+                        Approved - {activeTx.coins} Coins Added
+                      </p>
+                    ) : activeTx && activeTx.status === 'declined' ? (
+                      <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
+                        Declined - Try Again
+                      </p>
+                    ) : isSubmittingTx ? (
+                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
+                        Initializing Transaction...
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {/* Warning Labels Popup-style */}
+                  <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] backdrop-blur-md flex flex-col items-center gap-2">
+                    <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
                       Fake Payment Not Allowed
                     </p>
-                    <p className="text-[13px] font-bold text-white tracking-wide text-center">
+                    <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
                       नकली पेमेंट मान्य नहीं है
                     </p>
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
