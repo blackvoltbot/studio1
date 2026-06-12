@@ -1,7 +1,7 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
@@ -54,6 +54,7 @@ export async function performLookup(number: string, requestId?: string) {
 
 /**
  * Creates a payment request and notifies admin via Telegram.
+ * Uses an explicit requestId field for searchable lookup.
  */
 export async function createPaymentRequest(requestId: string, sessionId: string, host: string) {
   const { firestore } = initializeFirebase();
@@ -62,7 +63,7 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
   const now = new Date();
   const timestamp = now.getTime();
 
-  // Explicitly use requestId as the Document ID in 'payment_requests' collection
+  // Create record with requestId as both the ID and a field for robust searching
   await setDoc(doc(firestore, 'payment_requests', requestId), {
     requestId,
     sessionId,

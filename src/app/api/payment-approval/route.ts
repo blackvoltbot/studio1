@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/config';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 /**
- * Handles payment approval/decline requests from external links.
+ * Handles payment approval/decline requests from external links using field queries.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -20,14 +20,18 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // DIRECT DOCUMENT LOOKUP: More robust than query for specific ID
-    const docRef = doc(firestore, 'payment_requests', requestId);
-    const docSnap = await getDoc(docRef);
+    // Locate document where requestId field matches
+    const q = query(
+      collection(firestore, 'payment_requests'), 
+      where('requestId', '==', requestId)
+    );
+    const querySnapshot = await getDocs(q);
 
-    if (!docSnap.exists()) {
+    if (querySnapshot.empty) {
       return new NextResponse('Request not found in security database', { status: 404 });
     }
 
+    const docRef = querySnapshot.docs[0].ref;
     const status = action === 'approve' ? 'APPROVED' : 'DECLINED';
     await updateDoc(docRef, { status });
 
