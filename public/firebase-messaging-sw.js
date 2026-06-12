@@ -1,3 +1,4 @@
+// Standard Firebase Messaging Service Worker
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
@@ -7,8 +8,7 @@ firebase.initializeApp({
   projectId: "black-details",
   storageBucket: "black-details.firebasestorage.app",
   messagingSenderId: "413937096538",
-  appId: "1:413937096538:web:683be70a198bd95973c563",
-  measurementId: "G-YZ9T8HNE9F"
+  appId: "1:413937096538:web:683be70a198bd95973c563"
 });
 
 const messaging = firebase.messaging();
