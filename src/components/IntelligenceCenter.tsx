@@ -76,6 +76,7 @@ export const IntelligenceCenter: React.FC = () => {
   const { data: userData } = useDoc(userRef);
 
   // Real-time listener for the user's latest transaction to show status
+  // Anchoring UI visibility to Firestore record ensures persistence across refreshes
   const txQuery = useMemo(() => {
     if (!db || !userPhone) return null;
     return query(
@@ -90,8 +91,19 @@ export const IntelligenceCenter: React.FC = () => {
   const activeTx = latestTx?.[0];
 
   // Logic to determine if QR should be visible
-  // Only show QR if submitting or if there is a pending/recent transaction
-  const showQrSection = isSubmittingTx || (activeTx && (activeTx.status === 'pending' || (Date.now() - activeTx.processedAt < 60000)));
+  // QR stays visible if status is pending, or if it was recently processed (within 5 minutes)
+  const showQrSection = useMemo(() => {
+    if (isSubmittingTx) return true;
+    if (!activeTx) return false;
+    
+    if (activeTx.status === 'pending') return true;
+    
+    // Show approved/declined status for 5 minutes after processing
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    const isRecent = activeTx.processedAt && (Date.now() - activeTx.processedAt < FIVE_MINUTES);
+    
+    return isRecent;
+  }, [activeTx, isSubmittingTx]);
 
   const currentCoins = userData?.coins || 0;
   const trialUsed = userData?.trialUsed || false;
@@ -251,7 +263,7 @@ export const IntelligenceCenter: React.FC = () => {
                 <div className="space-y-4 w-full max-w-[300px]">
                   {/* Real-time Status Area */}
                   <div className="p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(242,13,13,0.2)] flex flex-col items-center gap-1">
-                    {activeTx && activeTx.status === 'pending' ? (
+                    {(activeTx && activeTx.status === 'pending') || isSubmittingTx ? (
                       <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
                         Waiting for Admin Approval
                       </p>
@@ -262,10 +274,6 @@ export const IntelligenceCenter: React.FC = () => {
                     ) : activeTx && activeTx.status === 'declined' ? (
                       <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
                         Declined - Try Again
-                      </p>
-                    ) : isSubmittingTx ? (
-                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
-                        Initializing Transaction...
                       </p>
                     ) : null}
                   </div>

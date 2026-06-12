@@ -1,4 +1,3 @@
-
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
@@ -82,7 +81,8 @@ export async function requestCoinPackage(phone: string, packageDetails: { amount
     amount: packageDetails.amount,
     coins: packageDetails.coins,
     status: 'pending',
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    processedAt: null
   });
 
   const message = `
@@ -133,7 +133,10 @@ export async function approveTransaction(transactionId: string) {
   });
 
   // Update status to reflect instantly via onSnapshot listeners
-  await updateDoc(txRef, { status: 'approved', processedAt: Date.now() });
+  await updateDoc(txRef, { 
+    status: 'approved', 
+    processedAt: Date.now() 
+  });
   return { success: true };
 }
 
@@ -143,7 +146,10 @@ export async function approveTransaction(transactionId: string) {
 export async function declineTransaction(transactionId: string) {
   const { firestore } = initializeFirebase();
   if (!firestore) return { success: false };
-  await updateDoc(doc(firestore, 'transactions', transactionId), { status: 'declined', processedAt: Date.now() });
+  await updateDoc(doc(firestore, 'transactions', transactionId), { 
+    status: 'declined', 
+    processedAt: Date.now() 
+  });
   return { success: true };
 }
 
