@@ -34,6 +34,7 @@ export async function performLookup(number: string, requestId?: string) {
       const { firestore } = initializeFirebase();
       if (firestore) {
         const requestRef = doc(firestore, 'payment_requests', requestId);
+        // We use non-await update here for performance as per guidelines
         updateDoc(requestRef, { status: 'USED' }).catch(e => console.error('Failed to mark used:', e));
       }
     }
@@ -82,29 +83,40 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
 👤 Session: ${sessionId}
 💰 Amount: ₹5
 📊 Status: Waiting Approval
+
+_Use the buttons below to approve/decline via the server, or use the Admin Dashboard for direct control._
   `.trim();
 
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
 
   const keyboard = {
-    inline_keyboard: [[
-      { text: '✅ Approve', url: `${baseUrl}/api/payment-approval?requestId=${requestId}&action=approve` },
-      { text: '❌ Decline', url: `${baseUrl}/api/payment-approval?requestId=${requestId}&action=decline` }
-    ]]
+    inline_keyboard: [
+      [
+        { text: '✅ Approve', url: `${baseUrl}/api/payment-approval?requestId=${requestId}&action=approve` },
+        { text: '❌ Decline', url: `${baseUrl}/api/payment-approval?requestId=${requestId}&action=decline` }
+      ],
+      [
+        { text: '🖥️ Open Admin Dashboard', url: `${baseUrl}/admin/dashboard` }
+      ]
+    ]
   };
 
   // 3. Send to Telegram
-  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: 'Markdown',
-      reply_markup: keyboard
-    })
-  });
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'Markdown',
+        reply_markup: keyboard
+      })
+    });
+  } catch (e) {
+    console.error('Telegram notification failed:', e);
+  }
 
   return { success: true };
 }

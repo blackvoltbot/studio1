@@ -20,28 +20,34 @@ export async function GET(req: NextRequest) {
   }
 
   const requestRef = doc(firestore, 'payment_requests', requestId);
-  const requestSnap = await getDoc(requestRef);
-
-  if (!requestSnap.exists()) {
-    return new NextResponse('Request not found', { status: 404 });
-  }
-
-  const status = action === 'approve' ? 'APPROVED' : 'DECLINED';
   
   try {
+    const requestSnap = await getDoc(requestRef);
+
+    if (!requestSnap.exists()) {
+      return new NextResponse('Request not found in security database', { status: 404 });
+    }
+
+    const status = action === 'approve' ? 'APPROVED' : 'DECLINED';
     await updateDoc(requestRef, { status });
+
     return new NextResponse(`
       <html>
-        <body style="background: #050505; color: #f20d0d; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center;">
-          <h1 style="text-shadow: 0 0 10px rgba(242,13,13,0.6);">ACTION EXECUTED</h1>
-          <p style="color: #666;">Request ${requestId} has been set to: <strong style="color: #f20d0d;">${status}</strong></p>
-          <p style="font-size: 12px; color: #444; margin-top: 20px;">You can close this window.</p>
+        <body style="background: #050505; color: #f20d0d; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; margin: 0;">
+          <div style="border: 1px solid #f20d0d; padding: 40px; border-radius: 10px; box-shadow: 0 0 20px rgba(242,13,13,0.3); background: rgba(0,0,0,0.8);">
+            <h1 style="text-shadow: 0 0 10px rgba(242,13,13,0.6); margin-bottom: 20px; font-size: 24px; letter-spacing: 2px;">ACTION EXECUTED</h1>
+            <p style="color: #ccc; font-size: 14px;">REQUEST_ID: <span style="color: #f20d0d;">${requestId}</span></p>
+            <p style="color: #ccc; font-size: 14px;">NEW_STATUS: <strong style="color: #f20d0d;">${status}</strong></p>
+            <div style="margin-top: 30px; border-top: 1px solid rgba(242,13,13,0.2); pt: 20px;">
+              <p style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Security override successful. You may close this window.</p>
+            </div>
+          </div>
         </body>
       </html>
     `, {
       headers: { 'Content-Type': 'text/html' }
     });
-  } catch (error) {
-    return new NextResponse('Update failed', { status: 500 });
+  } catch (error: any) {
+    return new NextResponse(`Operation Failed: ${error.message}`, { status: 500 });
   }
 }

@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useAuth, useFirestore } from '@/firebase';
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth, useFirestore, useCollection } from '@/firebase';
+import { doc, getDoc, updateDoc, increment, collection, query, orderBy, limit } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { Settings, Lock, LogOut, ShieldAlert, Save, RefreshCw, Cpu } from 'lucide-react';
+import { Settings, Lock, LogOut, ShieldAlert, Save, RefreshCw, Cpu, Database, CheckCircle2, XCircle, Clock, History } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -46,6 +46,14 @@ export default function AdminDashboardPage() {
     return () => unsubscribe();
   }, [router, auth, db, mounted]);
 
+  // Payment Requests Query
+  const requestsQuery = useMemo(() => {
+    if (!db) return null;
+    return query(collection(db, 'payment_requests'), orderBy('timestamp', 'desc'), limit(10));
+  }, [db]);
+
+  const { data: requests, loading: requestsLoading } = useCollection(requestsQuery);
+
   const updatePassword = async () => {
     if (!db) return;
     setIsSaving(true);
@@ -59,6 +67,16 @@ export default function AdminDashboardPage() {
       toast({ variant: "destructive", title: "Error", description: e.message });
     }
     setIsSaving(false);
+  };
+
+  const handleRequestStatus = async (requestId: string, status: 'APPROVED' | 'DECLINED') => {
+    if (!db) return;
+    try {
+      await updateDoc(doc(db, 'payment_requests', requestId), { status });
+      toast({ title: "Status Updated", description: `Request ${status.toLowerCase()} successfully.` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    }
   };
 
   const triggerForceLogout = async () => {
@@ -93,14 +111,14 @@ export default function AdminDashboardPage() {
       <MatrixBackground />
       <div className="scanline opacity-10"></div>
       
-      <div className="max-w-4xl mx-auto space-y-8 relative z-10">
+      <div className="max-w-6xl mx-auto space-y-8 relative z-10">
         <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-6 rounded-xl border border-primary/20">
           <div className="flex items-center gap-4">
             <div className="bg-primary/20 p-3 rounded-xl border border-primary/40">
               <Settings className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-headline tracking-tighter text-glow-red">BLACK DETAIL CONTROL</h1>
+              <h1 className="text-3xl font-headline tracking-tighter text-glow-red uppercase">Black Detail Terminal</h1>
               <p className="text-xs text-muted-foreground font-code uppercase tracking-widest">Administrative Override Unit</p>
             </div>
           </div>
@@ -109,50 +127,121 @@ export default function AdminDashboardPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Card className="glass-card border-primary/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg text-primary font-headline tracking-widest">
-                <Lock className="w-5 h-5" /> ACCESS CIPHER
-              </CardTitle>
-              <CardDescription className="text-muted-foreground text-xs uppercase font-code">Modify global operational key.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Input
-                  className="bg-black/50 border-primary/20 text-primary font-code"
-                  value={newSitePassword}
-                  onChange={(e) => setNewSitePassword(e.target.value)}
-                />
-              </div>
-              <Button 
-                onClick={updatePassword} 
-                disabled={isSaving || newSitePassword === currentSitePassword}
-                className="w-full bg-primary hover:bg-primary/80 font-bold"
-              >
-                <Save className="w-4 h-4 mr-2" /> COMMIT
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          <div className="lg:col-span-2 space-y-8">
+            <Card className="glass-card border-primary/20">
+              <CardHeader className="border-b border-primary/10 mb-4">
+                <CardTitle className="flex items-center gap-2 text-lg text-primary font-headline tracking-widest">
+                  <Database className="w-5 h-5" /> PAYMENT APPROVAL TERMINAL
+                </CardTitle>
+                <CardDescription className="text-muted-foreground text-xs uppercase font-code">Real-time lookup authorization queue</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {requestsLoading ? (
+                  <div className="py-12 text-center animate-pulse">
+                    <Cpu className="w-8 h-8 text-primary mx-auto mb-2" />
+                    <p className="text-[10px] font-code uppercase text-primary/60">Scanning Data Channels...</p>
+                  </div>
+                ) : requests.length === 0 ? (
+                  <div className="py-12 text-center opacity-30">
+                    <History className="w-12 h-12 text-primary mx-auto mb-2" />
+                    <p className="text-[10px] font-code uppercase">No pending requests detected</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {requests.map((req: any) => (
+                      <div key={req.requestId} className="bg-black/40 border border-primary/10 p-4 rounded-lg flex items-center justify-between group hover:border-primary/30 transition-all">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-code text-muted-foreground uppercase">ID:</span>
+                            <span className="text-xs font-code text-primary">{req.requestId.slice(0, 12)}...</span>
+                            <span className={`text-[10px] font-code px-1.5 py-0.5 rounded border ${
+                              req.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
+                              req.status === 'WAITING_APPROVAL' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
+                              'bg-destructive/10 border-destructive/20 text-destructive'
+                            }`}>
+                              {req.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-[10px] text-muted-foreground font-code">
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(req.timestamp).toLocaleString()}</span>
+                            <span className="flex items-center gap-1"><Database className="w-3 h-3" /> ₹{req.amount}</span>
+                          </div>
+                        </div>
+                        
+                        {req.status === 'WAITING_APPROVAL' && (
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              className="bg-emerald-600 hover:bg-emerald-500 h-8 font-bold"
+                              onClick={() => handleRequestStatus(req.requestId, 'APPROVED')}
+                            >
+                              <CheckCircle2 className="w-4 h-4 mr-1" /> APPROVE
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="destructive" 
+                              className="h-8 font-bold"
+                              onClick={() => handleRequestStatus(req.requestId, 'DECLINED')}
+                            >
+                              <XCircle className="w-4 h-4 mr-1" /> DECLINE
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card className="glass-card border-destructive/20 border-l-4 border-l-destructive">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg text-destructive font-headline tracking-widest">
-                <ShieldAlert className="w-5 h-5" /> FORCE PURGE
-              </CardTitle>
-              <CardDescription className="text-muted-foreground text-xs uppercase font-code">Terminate all global sessions.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button 
-                variant="destructive"
-                onClick={triggerForceLogout} 
-                disabled={isSaving}
-                className="w-full bg-destructive hover:bg-destructive/80 font-bold pulse-red"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${isSaving ? 'animate-spin' : ''}`} /> TRIGGER LOGOUT
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="space-y-8">
+            <Card className="glass-card border-primary/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg text-primary font-headline tracking-widest">
+                  <Lock className="w-5 h-5" /> ACCESS CIPHER
+                </CardTitle>
+                <CardDescription className="text-muted-foreground text-xs uppercase font-code">Modify global operational key.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Input
+                    className="bg-black/50 border-primary/20 text-primary font-code"
+                    value={newSitePassword}
+                    onChange={(e) => setNewSitePassword(e.target.value)}
+                  />
+                </div>
+                <Button 
+                  onClick={updatePassword} 
+                  disabled={isSaving || newSitePassword === currentSitePassword}
+                  className="w-full bg-primary hover:bg-primary/80 font-bold"
+                >
+                  <Save className="w-4 h-4 mr-2" /> COMMIT
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-card border-destructive/20 border-l-4 border-l-destructive">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg text-destructive font-headline tracking-widest">
+                  <ShieldAlert className="w-5 h-5" /> FORCE PURGE
+                </CardTitle>
+                <CardDescription className="text-muted-foreground text-xs uppercase font-code">Terminate all global sessions.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button 
+                  variant="destructive"
+                  onClick={triggerForceLogout} 
+                  disabled={isSaving}
+                  className="w-full bg-destructive hover:bg-destructive/80 font-bold pulse-red"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isSaving ? 'animate-spin' : ''}`} /> TRIGGER LOGOUT
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
