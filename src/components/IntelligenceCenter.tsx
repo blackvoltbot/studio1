@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -10,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import { performLookup, createPaymentRequest } from '@/app/lib/lookup-actions';
 import { doc } from 'firebase/firestore';
 import { useFirestore, useDoc } from '@/firebase';
-import Image from 'next/image';
 
 interface SearchRecord {
   id: string;
@@ -177,11 +175,11 @@ export const IntelligenceCenter: React.FC = () => {
           <CardContent className="space-y-6 flex flex-col items-center">
             
             <div className="relative group p-2 bg-white rounded-xl">
-              <Image 
-                src="https://res.cloudinary.com/dgg0b8mnk/image/upload/v1780901879/f1421dab-de96-46fe-bbb9-c66202f3fe1e_wgvbc6.jpg"
+              <img 
+                src="https://i.ibb.co/W4ZwkjYy/f1421dab-de96-46fe-bbb9-c66202f3fe1e.jpg"
                 alt="Payment QR"
-                width={200}
-                height={200}
+                width="200"
+                height="200"
                 className="rounded-lg shadow-2xl"
               />
               <div className="absolute inset-0 border-2 border-primary/20 rounded-xl group-hover:border-primary/50 transition-all"></div>
