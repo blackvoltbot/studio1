@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, History, Trash2, Copy, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode } from 'lucide-react';
+import { Search, History, Trash2, Copy, Fingerprint, Database, FileText, CheckCircle2, Clock, XCircle, QrCode, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -59,7 +59,7 @@ export const IntelligenceCenter: React.FC = () => {
     return doc(db, 'payment_requests', activeRequestId);
   }, [db, activeRequestId]);
 
-  const { data: requestData } = useDoc(requestRef);
+  const { data: requestData, loading: requestLoading } = useDoc(requestRef);
 
   const canSearch = requestData?.status === 'APPROVED';
 
@@ -79,6 +79,15 @@ export const IntelligenceCenter: React.FC = () => {
       });
     }
   }, [requestData?.status, toast]);
+
+  const resetSession = () => {
+    setActiveRequestId(null);
+    localStorage.removeItem('bd_active_request');
+    toast({
+      title: "Terminal Reset",
+      description: "Previous session cleared. Ready for new authorization."
+    });
+  };
 
   const handlePaidClick = async () => {
     setIsPaying(true);
@@ -138,6 +147,7 @@ export const IntelligenceCenter: React.FC = () => {
           return updated;
         });
 
+        // Clear request immediately after success
         setActiveRequestId(null);
         localStorage.removeItem('bd_active_request');
 
@@ -172,7 +182,8 @@ export const IntelligenceCenter: React.FC = () => {
 
   if (!mounted) return null;
 
-  const showPaidButton = !requestData || requestData.status === 'USED' || requestData.status === 'DECLINED';
+  // Show "I've Paid" if no request, OR if previous request is done/declined
+  const showPaidButton = !activeRequestId || (!requestLoading && (!requestData || requestData.status === 'USED' || requestData.status === 'DECLINED'));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -217,15 +228,22 @@ export const IntelligenceCenter: React.FC = () => {
                 </Button>
               )}
 
-              {requestData?.status === 'WAITING_APPROVAL' && (
-                <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg animate-pulse">
-                  <Clock className="w-6 h-6 text-primary" />
+              {activeRequestId && requestLoading && (
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <RefreshCw className="w-6 h-6 text-primary animate-spin" />
+                  <p className="text-[10px] font-code text-primary uppercase animate-pulse">Checking Authorization Status...</p>
+                </div>
+              )}
+
+              {activeRequestId && requestData?.status === 'WAITING_APPROVAL' && (
+                <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                  <Clock className="w-6 h-6 text-primary animate-pulse" />
                   <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold text-center">Awaiting Admin Authorization</p>
                   <p className="text-[10px] text-muted-foreground font-code uppercase">Req ID: {activeRequestId?.slice(0, 8)}</p>
                   <Button 
                     variant="link" 
-                    className="text-[10px] text-primary/60 font-code uppercase"
-                    onClick={() => { setActiveRequestId(null); localStorage.removeItem('bd_active_request'); }}
+                    className="text-[10px] text-primary/60 font-code uppercase mt-2"
+                    onClick={resetSession}
                   >
                     Reset Terminal Session
                   </Button>
@@ -247,7 +265,7 @@ export const IntelligenceCenter: React.FC = () => {
                   <Button 
                     variant="link" 
                     className="text-[10px] text-destructive/60 font-code uppercase"
-                    onClick={() => { setActiveRequestId(null); localStorage.removeItem('bd_active_request'); }}
+                    onClick={resetSession}
                   >
                     Initiate New Payment Request
                   </Button>
