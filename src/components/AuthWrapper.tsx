@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { getToken, onMessage } from 'firebase/messaging';
 import { ShieldAlert, Cpu, Lock, Terminal, AlertCircle, Loader2, Phone, KeyRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -31,32 +30,45 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     if (savedPhone) setCurrentUser(savedPhone);
   }, []);
 
-  // Handle FCM Registration
+  // Handle FCM Registration (Client-side only with support check)
   useEffect(() => {
     if (mounted && currentUser && db) {
       const registerFCM = async () => {
-        try {
-          const { messaging } = initializeFirebase();
-          if (!messaging) return;
-
-          const permission = await Notification.requestPermission();
-          if (permission === 'granted') {
-            const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-            if (token) {
-              const userRef = doc(db, 'users', currentUser);
-              await updateDoc(userRef, { fcmToken: token });
-              console.log('FCM Token Registered:', token);
+        // Safe check for browser environment and service worker support
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+          try {
+            const { isSupported, getMessaging, getToken, onMessage } = await import('firebase/messaging');
+            const supported = await isSupported();
+            
+            if (!supported) {
+              console.warn('FCM is not supported in this browser.');
+              return;
             }
-          }
 
-          onMessage(messaging, (payload) => {
-            toast({
-              title: payload.notification?.title || "Notification",
-              description: payload.notification?.body || "",
+            const { app } = initializeFirebase();
+            if (!app) return;
+
+            const messaging = getMessaging(app);
+            const permission = await Notification.requestPermission();
+            
+            if (permission === 'granted') {
+              const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+              if (token) {
+                const userRef = doc(db, 'users', currentUser);
+                await updateDoc(userRef, { fcmToken: token });
+                console.log('FCM Token Registered:', token);
+              }
+            }
+
+            onMessage(messaging, (payload) => {
+              toast({
+                title: payload.notification?.title || "Notification",
+                description: payload.notification?.body || "",
+              });
             });
-          });
-        } catch (error) {
-          console.error('FCM Registration Error:', error);
+          } catch (error) {
+            console.error('FCM Registration Error:', error);
+          }
         }
       };
       registerFCM();

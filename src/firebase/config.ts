@@ -1,7 +1,6 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
-import { getMessaging, Messaging } from 'firebase/messaging';
 
 /**
  * Firebase configuration object.
@@ -19,11 +18,10 @@ export const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let firestore: Firestore | null = null;
-let messaging: Messaging | null = null;
 
 /**
  * Initializes Firebase services for both Client and Server environments.
- * Ensures that service instances are always returned even if app is already initialized.
+ * Messaging is handled separately in client components due to SSR constraints.
  */
 export function initializeFirebase() {
   try {
@@ -36,17 +34,14 @@ export function initializeFirebase() {
     if (app) {
       auth = getAuth(app);
       firestore = getFirestore(app);
-      
-      // Messaging only works in the browser
-      if (typeof window !== 'undefined') {
-        messaging = getMessaging(app);
-      }
     }
   } catch (error) {
     console.error('Firebase initialization failure:', error);
   }
   
-  return { app, auth, firestore, messaging };
+  // Return messaging as null here; it should be initialized inside client components
+  // using dynamic imports and isSupported() checks.
+  return { app, auth, firestore, messaging: null };
 }
 
 /**
