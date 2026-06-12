@@ -19,13 +19,13 @@ export async function POST(req: NextRequest) {
     const data = callbackQuery.data; // Expected format: "pay_ok_{requestId}"
     const parts = data.split('_');
     
-    // Validate format: prefix (pay), action (ok/no), id (uuid)
+    // Validate format: prefix (pay), action (ok/no), id
     if (parts.length < 3 || parts[0] !== 'pay') {
       return NextResponse.json({ ok: true });
     }
 
     const actionKey = parts[1]; // "ok" or "no"
-    const requestId = parts.slice(2).join('_'); // Extract full ID in case it contains underscores
+    const requestId = parts.slice(2).join('_'); // Extract full ID
 
     const { firestore } = initializeFirebase();
     if (!firestore) throw new Error('Firestore initialization failed');
@@ -40,12 +40,11 @@ export async function POST(req: NextRequest) {
 
     const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
     
-    // Update the exactly matched document ID
     await updateDoc(requestRef, { status: newStatus });
 
     await answerCallbackQuery(
       callbackQuery.id, 
-      `SYSTEM: ${newStatus} sequence executed for ID ${requestId.slice(0,8)}.`
+      `SYSTEM: ${newStatus} sequence executed.`
     );
 
     const timestamp = new Date().toLocaleTimeString();

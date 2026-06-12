@@ -36,7 +36,7 @@ export const IntelligenceCenter: React.FC = () => {
     
     let sId = localStorage.getItem('bd_session_id');
     if (!sId) {
-      sId = crypto.randomUUID();
+      sId = Math.random().toString(36).substring(2, 12).toUpperCase();
       localStorage.setItem('bd_session_id', sId);
     }
     setSessionId(sId);
@@ -80,19 +80,11 @@ export const IntelligenceCenter: React.FC = () => {
     }
   }, [requestData?.status, toast]);
 
-  const resetSession = () => {
-    setActiveRequestId(null);
-    localStorage.removeItem('bd_active_request');
-    toast({
-      title: "Terminal Reset",
-      description: "Previous session cleared. Ready for new authorization."
-    });
-  };
-
   const handlePaidClick = async () => {
     setIsPaying(true);
     try {
-      const newRequestId = crypto.randomUUID();
+      // Generate a clean, readable ID
+      const newRequestId = Math.random().toString(36).substring(2, 10).toUpperCase();
       const host = typeof window !== 'undefined' ? window.location.host : '';
       await createPaymentRequest(newRequestId, sessionId, host);
       
@@ -133,7 +125,7 @@ export const IntelligenceCenter: React.FC = () => {
 
       if (result.success) {
         const newRecord: SearchRecord = {
-          id: crypto.randomUUID(),
+          id: Math.random().toString(36).substring(2, 12),
           number,
           timestamp: Date.now(),
           data: result.data,
@@ -182,8 +174,8 @@ export const IntelligenceCenter: React.FC = () => {
 
   if (!mounted) return null;
 
-  // Show "I've Paid" if no request, OR if previous request is done/declined
-  const showPaidButton = !activeRequestId || (!requestLoading && (!requestData || requestData.status === 'USED' || requestData.status === 'DECLINED'));
+  // Show "I've Paid" if we are not currently approved
+  const showPaidButton = !canSearch;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -213,7 +205,7 @@ export const IntelligenceCenter: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1">
-              <p className="text-xl font-bold tracking-widest text-primary uppercase">Pay ₹5 Per Scan</p>
+              <p className="text-xl font-bold tracking-widest text-primary uppercase">Pay ₹5 To Search</p>
               <p className="text-[10px] text-muted-foreground font-code uppercase tracking-[0.3em]">UPI IDENTITY VERIFICATION REQUIRED</p>
             </div>
 
@@ -228,47 +220,26 @@ export const IntelligenceCenter: React.FC = () => {
                 </Button>
               )}
 
-              {activeRequestId && requestLoading && (
-                <div className="flex flex-col items-center gap-2 py-4">
-                  <RefreshCw className="w-6 h-6 text-primary animate-spin" />
-                  <p className="text-[10px] font-code text-primary uppercase animate-pulse">Checking Authorization Status...</p>
-                </div>
-              )}
-
               {activeRequestId && requestData?.status === 'WAITING_APPROVAL' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
                   <Clock className="w-6 h-6 text-primary animate-pulse" />
-                  <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold text-center">Awaiting Admin Authorization</p>
-                  <p className="text-[10px] text-muted-foreground font-code uppercase">Req ID: {activeRequestId?.slice(0, 8)}</p>
-                  <Button 
-                    variant="link" 
-                    className="text-[10px] text-primary/60 font-code uppercase mt-2"
-                    onClick={resetSession}
-                  >
-                    Reset Terminal Session
-                  </Button>
+                  <p className="text-sm font-headline tracking-widest text-primary uppercase font-bold text-center">Waiting For Admin Approval</p>
+                  <p className="text-[10px] text-muted-foreground font-code uppercase">Req ID: {activeRequestId}</p>
                 </div>
               )}
 
               {requestData?.status === 'APPROVED' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.1)]">
                   <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                  <p className="text-sm font-headline tracking-widest text-emerald-500 uppercase font-bold text-center">Authorization Approved</p>
-                  <p className="text-[10px] text-emerald-500/60 font-code uppercase">Terminal Unlocked for single scan</p>
+                  <p className="text-sm font-headline tracking-widest text-emerald-500 uppercase font-bold text-center">Approved</p>
+                  <p className="text-[10px] text-emerald-500/60 font-code uppercase">Terminal Unlocked. Payment Approved. You may now search.</p>
                 </div>
               )}
 
               {requestData?.status === 'DECLINED' && (
                 <div className="flex flex-col items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
                   <XCircle className="w-6 h-6 text-destructive" />
-                  <p className="text-sm font-headline tracking-widest text-destructive uppercase font-bold text-center">Authorization Declined</p>
-                  <Button 
-                    variant="link" 
-                    className="text-[10px] text-destructive/60 font-code uppercase"
-                    onClick={resetSession}
-                  >
-                    Initiate New Payment Request
-                  </Button>
+                  <p className="text-sm font-headline tracking-widest text-destructive uppercase font-bold text-center">Declined</p>
                 </div>
               )}
             </div>
@@ -302,11 +273,6 @@ export const IntelligenceCenter: React.FC = () => {
                 {isSearching ? "SCANNING..." : "ENGAGE SEARCH"}
               </Button>
             </form>
-            {!canSearch && (
-              <p className="text-[10px] text-muted-foreground font-code mt-4 text-center uppercase tracking-widest opacity-60">
-                LOCKED: AUTHENTICATION SEQUENCE PENDING ADMIN APPROVAL
-              </p>
-            )}
           </CardContent>
         </Card>
 
