@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/config';
-import { collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 
@@ -16,33 +16,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const data = callbackQuery.data; // Expected format: "pay_ok_{requestId}"
+    const data = callbackQuery.data; 
+    console.log(`[TELEGRAM WEBHOOK] Received callback data: ${data}`);
+    
     const parts = data.split('_');
     
     // Validate format: prefix (pay), action (ok/no), id
     if (parts.length < 3 || parts[0] !== 'pay') {
+      console.warn(`[TELEGRAM WEBHOOK] Invalid callback format: ${data}`);
       return NextResponse.json({ ok: true });
     }
 
     const actionKey = parts[1]; // "ok" or "no"
     const requestId = parts.slice(2).join('_'); // Extract full ID
 
+    console.log(`[TELEGRAM WEBHOOK] Extracted Request ID: ${requestId}`);
+
     const { firestore } = initializeFirebase();
     if (!firestore) throw new Error('Firestore initialization failed');
 
-    // Query Firestore by requestId field for robustness
-    const q = query(collection(firestore, 'payment_requests'), where('requestId', '==', requestId));
-    const querySnapshot = await getDocs(q);
+    // DIRECT DOCUMENT LOOKUP: Using requestId as the primary document key
+    // This is faster and more reliable than a query by field.
+    const docRef = doc(firestore, 'payment_requests', requestId);
+    const docSnap = await getDoc(docRef);
 
-    if (querySnapshot.empty) {
+    if (!docSnap.exists()) {
+      console.error(`[TELEGRAM WEBHOOK] Record not found in intelligence database: ${requestId}`);
       await answerCallbackQuery(callbackQuery.id, `❌ Error: Request ID [${requestId}] not found in intelligence database.`);
       return NextResponse.json({ ok: true });
     }
 
-    const requestDoc = querySnapshot.docs[0];
     const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
     
-    await updateDoc(requestDoc.ref, { status: newStatus });
+    // Update the existing document directly
+    await updateDoc(docRef, { status: newStatus });
+
+    console.log(`[TELEGRAM WEBHOOK] Authorization sequence successful. Status set to: ${newStatus}`);
 
     await answerCallbackQuery(
       callbackQuery.id, 
@@ -52,6 +61,7 @@ export async function POST(req: NextRequest) {
     const timestamp = new Date().toLocaleTimeString();
     const statusIcon = newStatus === 'APPROVED' ? '✅' : '❌';
     
+    // Update the message in Telegram to reflect final status
     await editMessageText(
       callbackQuery.message.chat.id,
       callbackQuery.message.message_id,
@@ -60,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error('[WEBHOOK] Critical Failure:', error);
+    console.error('[TELEGRAM WEBHOOK] Critical Failure:', error);
     return NextResponse.json({ ok: false, error: error.message });
   }
 }
