@@ -6,6 +6,7 @@ const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 
 /**
  * Handles Telegram callback queries for real inline buttons.
+ * Responds to callback_data: approve_{requestId} or decline_{requestId}
  */
 export async function POST(req: NextRequest) {
   try {
@@ -19,20 +20,25 @@ export async function POST(req: NextRequest) {
     const data = callbackQuery.data; // e.g., "approve_uuid"
     if (!data) return NextResponse.json({ ok: true });
 
-    const [action, requestId] = data.split('_');
+    // Robust parsing of action and requestId
+    const action = data.startsWith('approve_') ? 'approve' : data.startsWith('decline_') ? 'decline' : null;
+    const requestId = action ? data.substring(action.length + 1) : null;
 
     if (!action || !requestId) {
+      console.error('Invalid callback data format:', data);
       return NextResponse.json({ ok: true });
     }
 
     const { firestore } = initializeFirebase();
     if (!firestore) throw new Error('Firestore initialization failed');
 
+    // Fetch from /payment_requests/{requestId}
     const requestRef = doc(firestore, 'payment_requests', requestId);
     const requestSnap = await getDoc(requestRef);
 
     if (!requestSnap.exists()) {
-      await answerCallbackQuery(callbackQuery.id, "Error: Request record not found in data core.");
+      console.error(`Request ID ${requestId} not found in collection 'payment_requests'`);
+      await answerCallbackQuery(callbackQuery.id, "Error: Request not found. Verify collection name.");
       return NextResponse.json({ ok: true });
     }
 
@@ -44,15 +50,17 @@ export async function POST(req: NextRequest) {
     // Acknowledge the callback in Telegram
     await answerCallbackQuery(
       callbackQuery.id, 
-      `SYSTEM: Request ${newStatus.toLowerCase()} successfully.`
+      `SYSTEM: Request ${newStatus} successfully.`
     );
 
     // Update the message text to show the action was taken
     const timestamp = new Date().toLocaleTimeString();
+    const statusIcon = newStatus === 'APPROVED' ? '✅' : '❌';
+    
     await editMessageText(
       callbackQuery.message.chat.id,
       callbackQuery.message.message_id,
-      `${callbackQuery.message.text}\n\n✅ *ACTION EXECUTED: ${newStatus}*\n🕒 *Processed:* ${timestamp}`
+      `${callbackQuery.message.text}\n\n${statusIcon} *ACTION EXECUTED: ${newStatus}*\n🕒 *Processed:* ${timestamp}`
     );
 
     return NextResponse.json({ ok: true });

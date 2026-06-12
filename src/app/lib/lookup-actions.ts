@@ -62,7 +62,7 @@ export async function createPaymentRequest(requestId: string, sessionId: string,
   const now = new Date();
   const timestamp = now.getTime();
 
-  // 1. Save to Firestore
+  // 1. Save to Firestore (Path: /payment_requests/{requestId})
   await setDoc(doc(firestore, 'payment_requests', requestId), {
     requestId,
     sessionId,
@@ -92,9 +92,6 @@ _Awaiting administrative authorization core._
       [
         { text: '✅ APPROVE', callback_data: `approve_${requestId}` },
         { text: '❌ DECLINE', callback_data: `decline_${requestId}` }
-      ],
-      [
-        { text: '🖥️ OPEN ADMIN TERMINAL', url: `https://${host}/admin/dashboard` }
       ]
     ]
   };
