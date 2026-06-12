@@ -14,7 +14,8 @@ import {
   User, 
   Lock,
   Search,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -37,20 +38,20 @@ export default function AdminDashboardPage() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
-  const { data: config } = useDoc(configRef);
+  const { data: config, loading: configLoading } = useDoc(configRef);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (mounted && config) {
+    if (mounted && !configLoading && config) {
       const storedToken = localStorage.getItem('admin_auth_token');
-      if (!storedToken || storedToken !== config.adminPassword) {
+      if (!storedToken || storedToken.trim() !== config.adminPassword?.trim()) {
         router.push('/admin/login');
       }
     }
-  }, [mounted, config, router]);
+  }, [mounted, config, configLoading, router]);
 
   const requestsQuery = useMemo(() => {
     if (!db) return null;
@@ -106,6 +107,15 @@ export default function AdminDashboardPage() {
 
   if (!mounted || !db) return null;
 
+  if (configLoading) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        <p className="text-[10px] font-code text-primary uppercase tracking-[0.5em]">Syncing Admin Core...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#050505] text-foreground font-body">
       {/* Header */}
@@ -145,12 +155,12 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-2xl font-bold font-headline">{requests.length}</p>
+                    <p className="text-2xl font-bold font-headline">{requests?.length || 0}</p>
                     <p className="text-[10px] text-muted-foreground uppercase">Total Requests</p>
                   </div>
                   <div>
                     <p className="text-2xl font-bold font-headline text-primary">
-                      {requests.filter(r => r.status === 'pending').length}
+                      {requests?.filter(r => r.status === 'pending').length || 0}
                     </p>
                     <p className="text-[10px] text-muted-foreground uppercase">Pending Approval</p>
                   </div>
@@ -176,11 +186,11 @@ export default function AdminDashboardPage() {
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground font-code">SYNCING_DATABASE...</td>
                       </tr>
-                    ) : requests.length === 0 ? (
+                    ) : requests?.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground font-code">NO_ACTIVE_RECORDS</td>
                       </tr>
-                    ) : requests.map((req) => (
+                    ) : requests?.map((req) => (
                       <tr key={req.requestId} className="hover:bg-white/[0.02] transition-colors">
                         <td className="px-6 py-4 font-code text-xs text-primary">{req.requestId}</td>
                         <td className="px-6 py-4 font-code text-xs">{req.phoneNumber || '---'}</td>

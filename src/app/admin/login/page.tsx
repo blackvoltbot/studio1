@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Lock, Cpu } from 'lucide-react';
+import { Shield, Lock, Cpu, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -18,13 +18,13 @@ export default function AdminLoginPage() {
   const db = useFirestore();
 
   const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
-  const { data: config } = useDoc(configRef);
+  const { data: config, loading: configLoading } = useDoc(configRef);
 
   useEffect(() => {
-    // Check if already logged in
-    if (typeof window !== 'undefined' && localStorage.getItem('admin_auth_token')) {
+    // Check if already logged in and token is still valid
+    if (typeof window !== 'undefined' && config) {
       const storedToken = localStorage.getItem('admin_auth_token');
-      if (config && storedToken === config.adminPassword) {
+      if (storedToken && storedToken.trim() === config.adminPassword?.trim()) {
         router.push('/admin/dashboard');
       }
     }
@@ -32,14 +32,17 @@ export default function AdminLoginPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!config) {
-      toast({ variant: "destructive", title: "Error", description: "System configuration not loaded." });
+    if (configLoading || !config) {
+      toast({ variant: "destructive", title: "Error", description: "Security module still initializing." });
       return;
     }
 
     setLoading(true);
-    if (password === config.adminPassword) {
-      localStorage.setItem('admin_auth_token', config.adminPassword);
+    const input = password.trim();
+    const target = config.adminPassword?.trim();
+
+    if (input && target && input === target) {
+      localStorage.setItem('admin_auth_token', target);
       toast({ title: "Authorized", description: "Welcome back, Commander." });
       router.push('/admin/dashboard');
     } else {
@@ -55,7 +58,7 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-md glass-card border-primary/20 z-10">
         <CardHeader className="text-center">
           <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/30">
-            <Shield className="w-8 h-8 text-primary" />
+            {configLoading ? <Loader2 className="w-8 h-8 text-primary animate-spin" /> : <Shield className="w-8 h-8 text-primary" />}
           </div>
           <CardTitle className="text-3xl font-headline tracking-tighter text-glow-red uppercase">CORE_ADMIN</CardTitle>
           <CardDescription className="text-xs font-code uppercase tracking-[0.3em] text-muted-foreground mt-2">Administrative Authentication</CardDescription>
@@ -71,10 +74,11 @@ export default function AdminLoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoFocus
+                disabled={loading || configLoading}
               />
             </div>
-            <Button type="submit" disabled={loading} className="w-full h-12 font-bold uppercase tracking-widest pulse-red">
-              {loading ? "VERIFYING..." : "ACCESS DASHBOARD"}
+            <Button type="submit" disabled={loading || configLoading} className="w-full h-12 font-bold uppercase tracking-widest pulse-red">
+              {loading || configLoading ? "VERIFYING..." : "ACCESS DASHBOARD"}
             </Button>
           </form>
           <div className="mt-8 flex justify-center gap-2">
