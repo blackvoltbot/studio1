@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -6,7 +7,7 @@ const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 
 /**
  * Handles Telegram callback queries for approval/decline actions.
- * Targets documents DIRECTLY using the requestId as the Firestore document ID.
+ * Corrected to use the "requests" collection.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -43,11 +44,11 @@ export async function POST(req: NextRequest) {
     }
 
     // DIRECT DOCUMENT LOOKUP: requestId is the primary key (Document ID)
-    const docRef = doc(firestore, 'payment_requests', requestId);
+    const docRef = doc(firestore, 'requests', requestId);
     const docSnap = await getDoc(docRef);
 
     if (!docSnap.exists()) {
-      console.error(`[TELEGRAM WEBHOOK] NOT FOUND: Record [${requestId}] does not exist in collection "payment_requests".`);
+      console.error(`[TELEGRAM WEBHOOK] NOT FOUND: Record [${requestId}] does not exist in collection "requests".`);
       await answerCallbackQuery(
         callbackQuery.id, 
         `❌ ERROR: Request [${requestId}] was not found in the database.`
@@ -55,30 +56,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const currentData = docSnap.data();
-    const newStatus = actionKey === 'ok' ? 'APPROVED' : 'DECLINED';
+    const newStatus = actionKey === 'ok' ? 'approved' : 'declined';
     
     // Execute direct update
     await updateDoc(docRef, { 
       status: newStatus,
-      processedAt: Date.now(),
+      updatedAt: Date.now(),
       updatedBy: 'TELEGRAM_BOT'
     });
 
     console.log(`[TELEGRAM WEBHOOK] SUCCESS: Request ${requestId} -> ${newStatus}`);
 
-    // Notify admin
+    // Notify admin via callback alert
     await answerCallbackQuery(
       callbackQuery.id, 
-      `SYSTEM: Authorization ${newStatus} for ID: ${requestId}.`
+      `SYSTEM: Authorization ${newStatus.toUpperCase()} for ID: ${requestId}.`
     );
 
     const timestamp = new Date().toLocaleTimeString();
-    const statusIcon = newStatus === 'APPROVED' ? '✅' : '❌';
+    const statusIcon = newStatus === 'approved' ? '✅' : '❌';
     
-    // Update original message
+    // Update original Telegram message text
     const originalText = callbackQuery.message?.text || 'Operational Record';
-    const updatedText = `${originalText}\n\n${statusIcon} *STATUS:* ${newStatus}\n🕒 *Processed:* ${timestamp}`;
+    const updatedText = `${originalText}\n\n${statusIcon} *STATUS:* ${newStatus.toUpperCase()}\n🕒 *Processed:* ${timestamp}`;
 
     await editMessageText(
       callbackQuery.message.chat.id,

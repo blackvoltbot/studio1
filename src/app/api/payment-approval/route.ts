@@ -1,10 +1,11 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeFirebase } from '@/firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 /**
- * Handles external payment approval/decline requests via direct document lookup.
- * Primarily used as a fallback or manual terminal endpoint.
+ * Handles external manual approval/decline requests via direct document lookup.
+ * Corrected to use the "requests" collection.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -23,16 +24,16 @@ export async function GET(req: NextRequest) {
   try {
     console.log(`[MANUAL APPROVAL] Targeting Request ID: [${requestId}]`);
     
-    // DIRECT DOCUMENT LOOKUP: requestId is the primary key
-    const docRef = doc(firestore, 'payment_requests', requestId);
+    // Corrected collection path
+    const docRef = doc(firestore, 'requests', requestId);
     const docSnap = await getDoc(docRef);
 
     if (!docSnap.exists()) {
       console.error(`[MANUAL APPROVAL] Record not found: ${requestId}`);
-      return new NextResponse(`Operational failure: Request ID [${requestId}] was not located in the secure database.`, { status: 404 });
+      return new NextResponse(`Operational failure: Request ID [${requestId}] was not located in the "requests" collection.`, { status: 404 });
     }
 
-    const status = action === 'approve' ? 'APPROVED' : 'DECLINED';
+    const status = action === 'approve' ? 'approved' : 'declined';
     await updateDoc(docRef, { 
       status,
       manualOverride: true,
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
             <h1 style="text-shadow: 0 0 10px rgba(242,13,13,0.6); margin-bottom: 20px; font-size: 24px; letter-spacing: 2px;">AUTHORIZATION COMPLETED</h1>
             <div style="text-align: left; background: rgba(255,0,0,0.05); padding: 20px; border-radius: 5px; border-left: 2px solid #f20d0d;">
               <p style="color: #ccc; font-size: 14px; margin: 5px 0;">TARGET_ID: <span style="color: #f20d0d;">${requestId}</span></p>
-              <p style="color: #ccc; font-size: 14px; margin: 5px 0;">SYSTEM_STATE: <strong style="color: #f20d0d;">${status}</strong></p>
+              <p style="color: #ccc; font-size: 14px; margin: 5px 0;">SYSTEM_STATE: <strong style="color: #f20d0d;">${status.toUpperCase()}</strong></p>
             </div>
             <div style="margin-top: 30px; border-top: 1px solid rgba(242,13,13,0.2); padding-top: 20px;">
               <p style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Security records synchronized. Terminal access updated.</p>
