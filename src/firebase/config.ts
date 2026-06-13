@@ -39,9 +39,7 @@ export function initializeFirebase() {
     console.error('Firebase initialization failure:', error);
   }
   
-  // Return messaging as null here; it should be initialized inside client components
-  // using dynamic imports and isSupported() checks.
-  return { app, auth, firestore, messaging: null };
+  return { app, auth, firestore };
 }
 
 /**

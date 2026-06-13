@@ -129,7 +129,7 @@ export async function approveTransaction(transactionId: string) {
 
   const { userPhone, coins } = txSnap.data();
 
-  // Credit the user account immediately
+  // Credit the user account
   const userRef = doc(firestore, 'users', userPhone);
   const userSnap = await getDoc(userRef);
   const userData = userSnap.data();
@@ -138,28 +138,25 @@ export async function approveTransaction(transactionId: string) {
     coins: increment(coins)
   });
 
-  // Update status to reflect instantly via onSnapshot listeners
   await updateDoc(txRef, { 
     status: 'approved', 
     processedAt: Date.now() 
   });
 
-  // Trigger Push Notification if user has a token
+  // Trigger FCM Notification
   if (userData?.fcmToken) {
     try {
-      // Send FCM notification using the FCM API
-      // Note: In a production app, the server key should be stored in environment variables.
       await fetch(`https://fcm.googleapis.com/fcm/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `key=AIzaSyB4Xb0uEh5obLhnqbJsVVuDEEoEtmw58Qk` // Provided API Key
+          'Authorization': `key=AIzaSyB4Xb0uEh5obLhnqbJsVVuDEEoEtmw58Qk`
         },
         body: JSON.stringify({
           to: userData.fcmToken,
           notification: {
             title: "Black Retail",
-            body: "Your package has been approved",
+            body: "Your request has been approved",
             icon: "/favicon.ico"
           }
         })

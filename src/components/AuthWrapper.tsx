@@ -30,20 +30,16 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     if (savedPhone) setCurrentUser(savedPhone);
   }, []);
 
-  // Handle FCM Registration (Client-side only with support check)
+  // Handle FCM Registration (Client-side only)
   useEffect(() => {
     if (mounted && currentUser && db) {
       const registerFCM = async () => {
-        // Safe check for browser environment and service worker support
         if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
           try {
             const { isSupported, getMessaging, getToken, onMessage } = await import('firebase/messaging');
             const supported = await isSupported();
             
-            if (!supported) {
-              console.warn('FCM is not supported in this browser.');
-              return;
-            }
+            if (!supported) return;
 
             const { app } = initializeFirebase();
             if (!app) return;
@@ -105,7 +101,6 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
           toast({ variant: "destructive", title: "Access Denied", description: "Incorrect credentials." });
         }
       } else {
-        // Auto-register with 1 free trial search
         await setDoc(userRef, {
           phoneNumber: phone,
           password: pass,
