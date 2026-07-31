@@ -32,9 +32,8 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       return { success: false, error: 'INSUFFICIENT_COINS' };
     }
 
-    // External Provider API
-    const apiKey = '@Adarsh_330';
-    const url = `https://sbsakib.eu.cc/apis/num_info_v1?key=${apiKey}&num=${targetNumber}`;
+    // External Provider API - Updated with new API endpoint
+    const url = `https://allnew.proportalxc.workers.dev/num?number=${targetNumber}`;
     
     const response = await fetch(url, {
       method: 'GET',
