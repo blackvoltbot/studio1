@@ -7,8 +7,55 @@ const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
 
 /**
+ * Robust JSON extractor for handling responses with trailing characters or multiple objects.
+ * Finds the first balanced JSON object in a string.
+ */
+function extractFirstJson(text: string) {
+  const trimmed = text.trim();
+  const start = trimmed.indexOf('{');
+  if (start === -1) throw new Error('No JSON data detected in operational response.');
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < trimmed.length; i++) {
+    const char = trimmed[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (char === '{') depth++;
+      if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          const jsonStr = trimmed.substring(start, i + 1);
+          return JSON.parse(jsonStr);
+        }
+      }
+    }
+  }
+  
+  // Fallback to standard parse if balancing fails but it looks like JSON
+  return JSON.parse(trimmed);
+}
+
+/**
  * Perform a search lookup. Handles the 1-time free trial logic and coin deduction.
- * Updated to use the new Lynx worker API integration.
+ * Corrected to handle non-standard JSON responses from workers.
  */
 export async function performLookupWithDeduction(phone: string, targetNumber: string) {
   const { firestore } = initializeFirebase();
@@ -33,11 +80,11 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       return { success: false, error: 'INSUFFICIENT_COINS' };
     }
 
-    // NEW API INTEGRATION: Using the Lynx Worker endpoint
-    // The base URL is kept on the server side for security.
     const baseUrl = process.env.NEW_API_URL || 'https://lynx.mireiariosss.workers.dev/api/chain/';
     const url = `${baseUrl}${targetNumber}`;
     
+    console.log(`[LOOKUP] Initiating request to provider for: ${targetNumber}`);
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -47,27 +94,51 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       next: { revalidate: 0 }
     });
 
-    if (!response.ok) throw new Error('Operational Link Failure: Provider Unreachable');
-    const data = await response.json();
+    const contentType = response.headers.get('content-type') || 'unknown';
+    const rawText = await response.text();
 
-    // Adapter/Mapper: The frontend expects the JSON directly as 'data'
-    // If the new API has a nested structure, we ensure the result is passed correctly.
-    const resultData = data.result || data;
+    // Server-side telemetry (Securely logged)
+    console.log(`[LOOKUP TELEMETRY] Status: ${response.status}`);
+    console.log(`[LOOKUP TELEMETRY] Content-Type: ${contentType}`);
+    console.log(`[LOOKUP TELEMETRY] Raw Length: ${rawText.length}`);
+    if (rawText.length > 0) {
+      console.log(`[LOOKUP TELEMETRY] Raw Start: ${rawText.substring(0, 100)}...`);
+      console.log(`[LOOKUP TELEMETRY] Raw End: ...${rawText.substring(rawText.length - 100)}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Operational Link Failure: Provider returned ${response.status}`);
+    }
+
+    let resultData;
+    try {
+      // Attempt robust extraction first to handle concatenated JSON/garbage
+      resultData = extractFirstJson(rawText);
+    } catch (parseError: any) {
+      console.error(`[PARSING ERROR] Failed to extract JSON: ${parseError.message}`);
+      // Fallback to simpler search if robust extraction fails
+      const start = rawText.indexOf('{');
+      const end = rawText.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        resultData = JSON.parse(rawText.substring(start, end + 1));
+      } else {
+        throw new Error('Data Analysis Failure: Response structure is unparseable.');
+      }
+    }
+
+    // Map to expected frontend format
+    const finalData = resultData.result || resultData.data || resultData;
 
     // Deduct coins or consume trial
     if (isFreeTrial) {
-      await updateDoc(userRef, {
-        trialUsed: true
-      });
+      await updateDoc(userRef, { trialUsed: true });
     } else {
-      await updateDoc(userRef, {
-        coins: increment(-5)
-      });
+      await updateDoc(userRef, { coins: increment(-5) });
     }
 
-    return { success: true, data: resultData, trialConsumed: isFreeTrial };
+    return { success: true, data: finalData, trialConsumed: isFreeTrial };
   } catch (error: any) {
-    console.error('[LOOKUP ERROR]:', error.message);
+    console.error('[LOOKUP CRITICAL ERROR]:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -79,7 +150,6 @@ export async function requestCoinPackage(phone: string, packageDetails: { amount
   const { firestore } = initializeFirebase();
   if (!firestore) throw new Error('DB_OFFLINE');
 
-  // Use Firestore addDoc for strictly Auto-generated ID
   const txCollectionRef = collection(firestore, 'transactions');
   const docRef = await addDoc(txCollectionRef, {
     userPhone: phone,
@@ -91,8 +161,6 @@ export async function requestCoinPackage(phone: string, packageDetails: { amount
   });
 
   const transactionId = docRef.id;
-
-  // Update the document to include its own ID as a field for easy search/sync
   await updateDoc(docRef, { transactionId });
 
   const message = `
@@ -136,7 +204,6 @@ export async function approveTransaction(transactionId: string) {
 
   const { userPhone, coins } = txSnap.data();
 
-  // Credit the user account
   const userRef = doc(firestore, 'users', userPhone);
   const userSnap = await getDoc(userRef);
   const userData = userSnap.data();
@@ -150,7 +217,6 @@ export async function approveTransaction(transactionId: string) {
     processedAt: Date.now() 
   });
 
-  // Trigger FCM Notification
   if (userData?.fcmToken) {
     try {
       await fetch(`https://fcm.googleapis.com/fcm/send`, {
