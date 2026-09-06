@@ -8,6 +8,7 @@ const TELEGRAM_CHAT_ID = '6150562869';
 
 /**
  * Perform a search lookup. Handles the 1-time free trial logic and coin deduction.
+ * Updated to use the new Lynx worker API integration.
  */
 export async function performLookupWithDeduction(phone: string, targetNumber: string) {
   const { firestore } = initializeFirebase();
@@ -32,20 +33,26 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       return { success: false, error: 'INSUFFICIENT_COINS' };
     }
 
-    // External Provider API - Updated with new API endpoint
-    const url = `https://allnew.proportalxc.workers.dev/num?number=${targetNumber}`;
+    // NEW API INTEGRATION: Using the Lynx Worker endpoint
+    // The base URL is kept on the server side for security.
+    const baseUrl = process.env.NEW_API_URL || 'https://lynx.mireiariosss.workers.dev/api/chain/';
+    const url = `${baseUrl}${targetNumber}`;
     
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Black-Detail-Operational-Intelligence/2.0',
       },
       next: { revalidate: 0 }
     });
 
-    if (!response.ok) throw new Error('Provider Link Failed');
+    if (!response.ok) throw new Error('Operational Link Failure: Provider Unreachable');
     const data = await response.json();
+
+    // Adapter/Mapper: The frontend expects the JSON directly as 'data'
+    // If the new API has a nested structure, we ensure the result is passed correctly.
+    const resultData = data.result || data;
 
     // Deduct coins or consume trial
     if (isFreeTrial) {
@@ -58,8 +65,9 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       });
     }
 
-    return { success: true, data, trialConsumed: isFreeTrial };
+    return { success: true, data: resultData, trialConsumed: isFreeTrial };
   } catch (error: any) {
+    console.error('[LOOKUP ERROR]:', error.message);
     return { success: false, error: error.message };
   }
 }
