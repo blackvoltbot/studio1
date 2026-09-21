@@ -80,10 +80,14 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       return { success: false, error: 'INSUFFICIENT_COINS' };
     }
 
-    const baseUrl = process.env.NEW_API_URL || 'https://lynx.mireiariosss.workers.dev/api/chain/';
-    const url = `${baseUrl}${targetNumber}`;
+    // NEW API INTEGRATION: dark-info.site
+    const apiKey = 'JSON-0018';
+    const cleanNumber = targetNumber.replace(/\D/g, ''); // Remove non-digits
+    // Ensure the number has the required 91 prefix for the new API
+    const fullNumber = cleanNumber.startsWith('91') ? cleanNumber : `91${cleanNumber}`;
+    const url = `https://dark-info.site/test/api.php?key=${apiKey}&num=${fullNumber}`;
     
-    console.log(`[LOOKUP] Initiating request to provider for: ${targetNumber}`);
+    console.log(`[LOOKUP] Initiating request to provider for: ${fullNumber}`);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -101,11 +105,7 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
     console.log(`[LOOKUP TELEMETRY] Status: ${response.status}`);
     console.log(`[LOOKUP TELEMETRY] Content-Type: ${contentType}`);
     console.log(`[LOOKUP TELEMETRY] Raw Length: ${rawText.length}`);
-    if (rawText.length > 0) {
-      console.log(`[LOOKUP TELEMETRY] Raw Start: ${rawText.substring(0, 100)}...`);
-      console.log(`[LOOKUP TELEMETRY] Raw End: ...${rawText.substring(rawText.length - 100)}`);
-    }
-
+    
     if (!response.ok) {
       throw new Error(`Operational Link Failure: Provider returned ${response.status}`);
     }
@@ -126,7 +126,7 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       }
     }
 
-    // Map to expected frontend format
+    // Map to expected frontend format (supports result, data, or direct object)
     const finalData = resultData.result || resultData.data || resultData;
 
     // Deduct coins or consume trial
