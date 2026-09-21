@@ -55,7 +55,7 @@ function extractFirstJson(text: string) {
 
 /**
  * Perform a search lookup. Handles the 1-time free trial logic and coin deduction.
- * Corrected to handle non-standard JSON responses from workers.
+ * Automatically routes between Phone and Aadhar APIs based on input detection.
  */
 export async function performLookupWithDeduction(phone: string, targetNumber: string) {
   const { firestore } = initializeFirebase();
@@ -80,14 +80,25 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       return { success: false, error: 'INSUFFICIENT_COINS' };
     }
 
-    // NEW API INTEGRATION: dark-info.site
-    const apiKey = 'JSON-0018';
     const cleanNumber = targetNumber.replace(/\D/g, ''); // Remove non-digits
-    // Ensure the number has the required 91 prefix for the new API
-    const fullNumber = cleanNumber.startsWith('91') ? cleanNumber : `91${cleanNumber}`;
-    const url = `https://dark-info.site/test/api.php?key=${apiKey}&num=${fullNumber}`;
+    let url = '';
+    let providerName = '';
+
+    // INPUT DETECTION & ROUTING LOGIC
+    // Aadhar: 12 digits, not starting with '91' (Phone prefix)
+    if (cleanNumber.length === 12 && !cleanNumber.startsWith('91')) {
+      const aadharKey = 'FREE_1_WEEK';
+      url = `https://paid-apis.vercel.app/api/aadhar?number=${cleanNumber}&api_key=${aadharKey}`;
+      providerName = 'AADHAR_INTEL';
+    } else {
+      // Default: Phone Lookup
+      const apiKey = 'JSON-0018';
+      const fullNumber = cleanNumber.startsWith('91') ? cleanNumber : `91${cleanNumber}`;
+      url = `https://dark-info.site/test/api.php?key=${apiKey}&num=${fullNumber}`;
+      providerName = 'PHONE_INTEL';
+    }
     
-    console.log(`[LOOKUP] Initiating request to provider for: ${fullNumber}`);
+    console.log(`[LOOKUP] Routing to ${providerName} for target: ${cleanNumber}`);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -102,9 +113,7 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
     const rawText = await response.text();
 
     // Server-side telemetry (Securely logged)
-    console.log(`[LOOKUP TELEMETRY] Status: ${response.status}`);
-    console.log(`[LOOKUP TELEMETRY] Content-Type: ${contentType}`);
-    console.log(`[LOOKUP TELEMETRY] Raw Length: ${rawText.length}`);
+    console.log(`[LOOKUP TELEMETRY] Provider: ${providerName}, Status: ${response.status}`);
     
     if (!response.ok) {
       throw new Error(`Operational Link Failure: Provider returned ${response.status}`);
@@ -112,11 +121,9 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
 
     let resultData;
     try {
-      // Attempt robust extraction first to handle concatenated JSON/garbage
       resultData = extractFirstJson(rawText);
     } catch (parseError: any) {
-      console.error(`[PARSING ERROR] Failed to extract JSON: ${parseError.message}`);
-      // Fallback to simpler search if robust extraction fails
+      console.error(`[PARSING ERROR] Failed to extract JSON from ${providerName}: ${parseError.message}`);
       const start = rawText.indexOf('{');
       const end = rawText.lastIndexOf('}');
       if (start !== -1 && end !== -1 && end > start) {
