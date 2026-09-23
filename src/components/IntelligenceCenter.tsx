@@ -16,15 +16,16 @@ import {
   CreditCard,
   AlertTriangle,
   Send,
-  Loader2
+  Loader2,
+  PackageSearch
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { performLookupWithDeduction, requestCoinPackage } from '@/app/lib/lookup-actions';
-import { doc } from 'firebase/firestore';
-import { useFirestore, useDoc } from '@/firebase';
+import { doc, collection, query, orderBy } from 'firebase/firestore';
+import { useFirestore, useDoc, useCollection } from '@/firebase';
 
 interface SearchRecord {
   id: string;
@@ -82,36 +83,20 @@ export const IntelligenceCenter: React.FC = () => {
     if (!db || !userPhone) return null;
     return doc(db, 'users', userPhone);
   }, [db, userPhone]);
-
   const { data: userData } = useDoc(userRef);
 
   const activeTxRef = useMemo(() => {
     if (!db || !activeTxId) return null;
     return doc(db, 'transactions', activeTxId);
   }, [db, activeTxId]);
-
   const { data: activeTx } = useDoc(activeTxRef);
 
-  const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
-  const { data: configData } = useDoc(configRef);
-
-  const coinPackages = useMemo(() => {
-    const defaults = [
-      { id: "Starter", coins: 20, label: "Starter", defaultAmount: 50 },
-      { id: "Standard", coins: 45, label: "Standard", defaultAmount: 100 },
-      { id: "Pro", coins: 300, label: "Pro", defaultAmount: 500 },
-      { id: "Enterprise", coins: 900, label: "Enterprise", defaultAmount: 1000 }
-    ];
-    return defaults.map(pkg => {
-      const customPrice = configData?.packagePrices?.[pkg.id];
-      const customCredits = configData?.packageCredits?.[pkg.id];
-      return {
-        amount: customPrice !== undefined && customPrice !== null ? Number(customPrice) : pkg.defaultAmount,
-        coins: customCredits !== undefined && customCredits !== null ? Number(customCredits) : pkg.coins,
-        label: pkg.label
-      };
-    });
-  }, [configData]);
+  // Dynamic Packages Fetch
+  const pkgQuery = useMemo(() => {
+    if (!db) return null;
+    return query(collection(db, 'packages'), orderBy('createdAt', 'asc'));
+  }, [db]);
+  const { data: coinPackages, loading: pkgLoading } = useCollection(pkgQuery);
 
   const handlePkgSelect = (pkg: any) => {
     setSelectedPkg(pkg);
@@ -124,32 +109,22 @@ export const IntelligenceCenter: React.FC = () => {
   const canSearch = hasTrial || currentCoins >= 5;
 
   const handleSubmitTransaction = async () => {
-    if (!userPhone) {
-      toast({ variant: "destructive", title: "Error", description: "User session expired. Please relogin." });
-      return;
-    }
-
+    if (!userPhone) return;
     if (!selectedPkg) {
-      toast({ variant: "destructive", title: "Selection Missing", description: "Please select a coin package first." });
+      toast({ variant: "destructive", title: "Selection Missing", description: "Select a package." });
       return;
     }
     
     setIsSubmittingTx(true);
     try {
-      const livePkg = coinPackages.find(p => p.label === selectedPkg.label) || selectedPkg;
-      const res = await requestCoinPackage(userPhone, livePkg);
+      const res = await requestCoinPackage(userPhone, selectedPkg);
       if (res.success && res.transactionId) {
         setActiveTxId(res.transactionId);
         localStorage.setItem('bd_active_tx_id', res.transactionId);
         setForceShowQr(true);
-        
         setSelectedPkg(null);
         localStorage.removeItem('bd_selected_pkg');
-
-        toast({ 
-          title: "Request Transmitted", 
-          description: `Transaction pending admin approval.` 
-        });
+        toast({ title: "Transmitted", description: `Transaction pending admin approval.` });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Link Failure", description: "Transmission failed." });
@@ -189,11 +164,7 @@ export const IntelligenceCenter: React.FC = () => {
           return updated;
         });
 
-        const msg = result.trialConsumed 
-          ? "FREE TRIAL CONSUMED. Normal scans now cost 5 coins."
-          : "Scan Complete. 5 Coins deducted.";
-        
-        toast({ title: "Operation Successful", description: msg });
+        toast({ title: "Operation Successful", description: result.trialConsumed ? "FREE TRIAL CONSUMED." : "5 Coins deducted." });
       } else {
         toast({ variant: "destructive", title: "Scan Failed", description: result.error });
       }
@@ -202,12 +173,6 @@ export const IntelligenceCenter: React.FC = () => {
     } finally {
       setIsSearching(false);
     }
-  };
-
-  const clearHistory = () => {
-    setHistory([]);
-    localStorage.removeItem('black_detail_history');
-    toast({ title: "Operation Logs Purged" });
   };
 
   if (!mounted) return null;
@@ -236,21 +201,33 @@ export const IntelligenceCenter: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {coinPackages.map((pkg) => (
-                <button
-                  key={pkg.label}
-                  onClick={() => handlePkgSelect(pkg)}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all group border ${
-                    selectedPkg?.label === pkg.label 
-                      ? 'bg-primary/20 border-primary shadow-[0_0_15px_rgba(242,13,13,0.3)]' 
-                      : 'bg-white/5 border-white/10 hover:bg-primary/5 hover:border-primary/40'
-                  }`}
-                >
-                  <p className="text-[10px] text-muted-foreground uppercase font-code group-hover:text-primary">{pkg.label}</p>
-                  <p className="text-xl font-bold text-foreground">₹{pkg.amount}</p>
-                  <p className="text-[10px] text-primary font-bold uppercase">{pkg.coins} Coins</p>
-                </button>
-              ))}
+              {pkgLoading ? (
+                <div className="col-span-full py-8 flex flex-col items-center opacity-50">
+                  <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                  <span className="text-[10px] font-code uppercase">Syncing Packages...</span>
+                </div>
+              ) : coinPackages?.length === 0 ? (
+                <div className="col-span-full py-8 flex flex-col items-center opacity-30 border border-dashed border-white/10 rounded-xl">
+                  <PackageSearch className="w-8 h-8 mb-2" />
+                  <span className="text-[10px] font-code uppercase">No Packages Available</span>
+                </div>
+              ) : (
+                coinPackages?.map((pkg) => (
+                  <button
+                    key={pkg.id}
+                    onClick={() => handlePkgSelect(pkg)}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all group border ${
+                      selectedPkg?.id === pkg.id 
+                        ? 'bg-primary/20 border-primary shadow-[0_0_15px_rgba(242,13,13,0.3)]' 
+                        : 'bg-white/5 border-white/10 hover:bg-primary/5 hover:border-primary/40'
+                    }`}
+                  >
+                    <p className="text-[10px] text-muted-foreground uppercase font-code group-hover:text-primary">{pkg.name}</p>
+                    <p className="text-xl font-bold text-foreground">₹{pkg.amount}</p>
+                    <p className="text-[10px] text-primary font-bold uppercase">{pkg.coins} Coins</p>
+                  </button>
+                ))
+              )}
             </div>
 
             {selectedPkg && (
@@ -260,7 +237,7 @@ export const IntelligenceCenter: React.FC = () => {
                     <CreditCard className="w-5 h-5 text-primary" />
                     <div>
                       <p className="text-xs font-code uppercase text-muted-foreground">Selection Ready</p>
-                      <p className="text-sm font-bold uppercase">₹{coinPackages.find(p => p.label === selectedPkg.label)?.amount ?? selectedPkg.amount} Package</p>
+                      <p className="text-sm font-bold uppercase">₹{selectedPkg.amount} Package</p>
                     </div>
                   </div>
                   <Button 
@@ -295,27 +272,17 @@ export const IntelligenceCenter: React.FC = () => {
                 <div className="space-y-4 w-full max-w-[300px]">
                   <div className="p-3 bg-black rounded-xl border border-white/10 shadow-[0_0_20px_rgba(242,13,13,0.2)] flex flex-col items-center gap-1">
                     {activeTx?.status === 'approved' ? (
-                      <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">
-                        APPROVED
-                      </p>
+                      <p className="text-[12px] font-bold text-emerald-500 tracking-wider uppercase text-center">APPROVED</p>
                     ) : activeTx?.status === 'declined' ? (
-                      <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">
-                        DECLINED
-                      </p>
+                      <p className="text-[12px] font-bold text-destructive tracking-wider uppercase text-center">DECLINED</p>
                     ) : (
-                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">
-                        Waiting for Admin Approval
-                      </p>
+                      <p className="text-[12px] font-bold text-primary animate-pulse tracking-wider uppercase text-center">Waiting for Admin Approval</p>
                     )}
                   </div>
 
                   <div className="p-4 bg-black rounded-xl border border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.15)] backdrop-blur-md flex flex-col items-center gap-2">
-                    <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
-                      Fake Payment Not Allowed
-                    </p>
-                    <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8),0_0_15px_rgba(0,183,255,0.5)]">
-                      नकली पेमेंट मान्य नहीं है
-                    </p>
+                    <p className="text-[11px] font-bold text-white tracking-widest uppercase text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">Fake Payment Not Allowed</p>
+                    <p className="text-[13px] font-bold text-white tracking-wide text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">नकली पेमेंट मान्य नहीं है</p>
                   </div>
                 </div>
               </div>
@@ -323,7 +290,7 @@ export const IntelligenceCenter: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-50 grayscale' : 'red-glow-hover'}`}>
+        <Card className={`glass-card border-primary/20 transition-all ${!canSearch ? 'opacity-50 grayscale' : ''}`}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-lg font-headline tracking-widest text-glow-red uppercase">
@@ -332,8 +299,7 @@ export const IntelligenceCenter: React.FC = () => {
               </CardTitle>
               {!canSearch && (
                 <div className="flex items-center gap-2 text-destructive text-[10px] font-code uppercase animate-pulse">
-                  <AlertTriangle className="w-3 h-3" />
-                  RELOAD_REQUIRED
+                  <AlertTriangle className="w-3 h-3" /> RELOAD_REQUIRED
                 </div>
               )}
             </div>
@@ -342,7 +308,7 @@ export const IntelligenceCenter: React.FC = () => {
             <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Input
-                  placeholder="ENTER TARGET NUMBER"
+                  placeholder="ENTER TARGET NUMBER / ID"
                   className="bg-black/40 border-primary/30 text-primary font-code focus:border-primary pl-10 h-12"
                   value={number}
                   onChange={(e) => setNumber(e.target.value)}
@@ -379,11 +345,10 @@ export const IntelligenceCenter: React.FC = () => {
         <Card className="glass-card border-primary/20 h-full flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between py-4">
             <CardTitle className="flex items-center gap-2 text-sm font-headline tracking-widest text-primary uppercase">
-              <History className="w-4 h-4" />
-              OP_LOGS
+              <History className="w-4 h-4" /> OP_LOGS
             </CardTitle>
             {history.length > 0 && (
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={clearHistory}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => { setHistory([]); localStorage.removeItem('black_detail_history'); toast({ title: "Logs Purged" }); }}>
                 <Trash2 className="w-4 h-4" />
               </Button>
             )}

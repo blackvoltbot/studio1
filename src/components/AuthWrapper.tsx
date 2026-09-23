@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc } from 'firebase/firestore';
 import { ShieldAlert, Cpu, Lock, Terminal, AlertCircle, Loader2, Phone, KeyRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     if (savedPhone) setCurrentUser(savedPhone);
   }, []);
 
-  // Handle FCM Registration (Client-side only)
+  // FCM Logic
   useEffect(() => {
     if (mounted && currentUser && db) {
       const registerFCM = async () => {
@@ -38,7 +38,6 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
           try {
             const { isSupported, getMessaging, getToken, onMessage } = await import('firebase/messaging');
             const supported = await isSupported();
-            
             if (!supported) return;
 
             const { app } = initializeFirebase();
@@ -52,7 +51,6 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
               if (token) {
                 const userRef = doc(db, 'users', currentUser);
                 await updateDoc(userRef, { fcmToken: token });
-                console.log('FCM Token Registered:', token);
               }
             }
 
@@ -63,7 +61,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
               });
             });
           } catch (error) {
-            console.error('FCM Registration Error:', error);
+            console.error('FCM Error:', error);
           }
         }
       };
@@ -82,7 +80,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     const pass = passwordInput.trim();
 
     if (!phone || !pass) {
-      toast({ variant: "destructive", title: "Missing Data", description: "Phone and Password are required." });
+      toast({ variant: "destructive", title: "Data Missing", description: "Phone and Password are required." });
       return;
     }
 
@@ -96,9 +94,9 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
         if (data.password === pass) {
           localStorage.setItem('bd_user_phone', phone);
           setCurrentUser(phone);
-          toast({ title: "Welcome back", description: "Operational link established." });
+          toast({ title: "Authorized", description: "Operational link established." });
         } else {
-          toast({ variant: "destructive", title: "Access Denied", description: "Incorrect credentials." });
+          toast({ variant: "destructive", title: "Access Denied", description: "Invalid credentials." });
         }
       } else {
         await setDoc(userRef, {
@@ -110,10 +108,10 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
         });
         localStorage.setItem('bd_user_phone', phone);
         setCurrentUser(phone);
-        toast({ title: "Account Initialized", description: "Welcome to Black Detail. You have 1 FREE scan available." });
+        toast({ title: "Account Initialized", description: "1 Free Scan available." });
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message });
+      toast({ variant: "destructive", title: "Sync Error", description: e.message });
     } finally {
       setIsVerifying(false);
     }
@@ -123,10 +121,27 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     if (!db) return;
     setIsVerifying(true);
     try {
+      // Config init
       await setDoc(doc(db, 'config', 'system'), {
         adminPassword: 'Guru112511@G@G'
       });
-      toast({ title: "System Ready", description: "Master credentials synchronized." });
+
+      // Default packages init
+      const pkgRef = collection(db, 'packages');
+      const pkgSnap = await getDocs(pkgRef);
+      if (pkgSnap.empty) {
+        const defaults = [
+          { name: "Starter", coins: 20, amount: 50 },
+          { name: "Standard", coins: 45, amount: 100 },
+          { name: "Pro", coins: 300, amount: 500 },
+          { name: "Enterprise", coins: 900, amount: 1000 }
+        ];
+        for (const p of defaults) {
+          await addDoc(pkgRef, { ...p, createdAt: Date.now() });
+        }
+      }
+
+      toast({ title: "System Initialized", description: "Master credentials and default packages synchronized." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Bootstrap Error", description: e.message });
     }
@@ -139,7 +154,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-10 h-10 text-primary animate-spin" />
-        <p className="text-[10px] font-code text-primary uppercase tracking-[0.5em] animate-pulse">Initializing Security Core...</p>
+        <p className="text-[10px] font-code text-primary uppercase tracking-[0.5em]">Syncing Security Core...</p>
       </div>
     );
   }
@@ -162,14 +177,14 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
 
   if (!config && db) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md glass-card border-primary/30 text-center">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 text-center">
+        <Card className="w-full max-w-md glass-card border-primary/30">
           <CardHeader>
             <Terminal className="w-12 h-12 text-primary mx-auto mb-4" />
             <CardTitle className="text-2xl font-headline tracking-widest uppercase">INIT_REQUIRED</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={handleBootstrap} disabled={isVerifying} className="w-full bg-primary font-bold tracking-widest pulse-red uppercase">
+            <Button onClick={handleBootstrap} disabled={isVerifying} className="w-full bg-primary font-bold tracking-widest uppercase pulse-red">
               {isVerifying ? "PREPARING..." : "INITIALIZE SECURITY CORE"}
             </Button>
           </CardContent>

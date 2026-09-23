@@ -1,7 +1,7 @@
 'use server';
 
 import { initializeFirebase } from '@/firebase/config';
-import { doc, getDoc, setDoc, updateDoc, increment, deleteDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, increment, deleteDoc, collection, addDoc, getDocs } from 'firebase/firestore';
 
 const TELEGRAM_BOT_TOKEN = '8902869302:AAHbJcwNtwaQCubsGyrVcDQj1QCKEtzLnMg';
 const TELEGRAM_CHAT_ID = '6150562869';
@@ -85,21 +85,17 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
     let providerName = '';
 
     // INPUT DETECTION & ROUTING LOGIC
-    // Aadhar: 12 digits, not starting with '91' (Phone prefix)
     if (cleanNumber.length === 12 && !cleanNumber.startsWith('91')) {
       const aadharKey = 'FREE_1_WEEK';
       url = `https://paid-apis.vercel.app/api/aadhar?number=${cleanNumber}&api_key=${aadharKey}`;
       providerName = 'AADHAR_INTEL';
     } else {
-      // Default: Phone Lookup
       const apiKey = 'JSON-0018';
       const fullNumber = cleanNumber.startsWith('91') ? cleanNumber : `91${cleanNumber}`;
       url = `https://dark-info.site/test/api.php?key=${apiKey}&num=${fullNumber}`;
       providerName = 'PHONE_INTEL';
     }
     
-    console.log(`[LOOKUP] Routing to ${providerName} for target: ${cleanNumber}`);
-
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -109,34 +105,15 @@ export async function performLookupWithDeduction(phone: string, targetNumber: st
       next: { revalidate: 0 }
     });
 
-    const contentType = response.headers.get('content-type') || 'unknown';
     const rawText = await response.text();
-
-    // Server-side telemetry (Securely logged)
-    console.log(`[LOOKUP TELEMETRY] Provider: ${providerName}, Status: ${response.status}`);
     
     if (!response.ok) {
       throw new Error(`Operational Link Failure: Provider returned ${response.status}`);
     }
 
-    let resultData;
-    try {
-      resultData = extractFirstJson(rawText);
-    } catch (parseError: any) {
-      console.error(`[PARSING ERROR] Failed to extract JSON from ${providerName}: ${parseError.message}`);
-      const start = rawText.indexOf('{');
-      const end = rawText.lastIndexOf('}');
-      if (start !== -1 && end !== -1 && end > start) {
-        resultData = JSON.parse(rawText.substring(start, end + 1));
-      } else {
-        throw new Error('Data Analysis Failure: Response structure is unparseable.');
-      }
-    }
-
-    // Map to expected frontend format (supports result, data, or direct object)
+    let resultData = extractFirstJson(rawText);
     const finalData = resultData.result || resultData.data || resultData;
 
-    // Deduct coins or consume trial
     if (isFreeTrial) {
       await updateDoc(userRef, { trialUsed: true });
     } else {
@@ -283,7 +260,40 @@ export async function updateSystemConfig(config: any) {
 }
 
 /**
- * Admin: Adjust user coins manually (increment/decrement).
+ * Admin: Add new package.
+ */
+export async function addNewPackage(pkg: { name: string, amount: number, coins: number }) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  await addDoc(collection(firestore, 'packages'), {
+    ...pkg,
+    createdAt: Date.now()
+  });
+  return { success: true };
+}
+
+/**
+ * Admin: Update package details.
+ */
+export async function updatePackage(id: string, data: any) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  await updateDoc(doc(firestore, 'packages', id), data);
+  return { success: true };
+}
+
+/**
+ * Admin: Delete package.
+ */
+export async function deletePackage(id: string) {
+  const { firestore } = initializeFirebase();
+  if (!firestore) return { success: false };
+  await deleteDoc(doc(firestore, 'packages', id));
+  return { success: true };
+}
+
+/**
+ * Admin: Adjust user coins manually.
  */
 export async function adjustUserCoins(phone: string, amount: number) {
   const { firestore } = initializeFirebase();
