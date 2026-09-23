@@ -30,9 +30,6 @@ import { useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { approveTransaction, declineTransaction, removeTransaction, updateSystemConfig, adjustUserCoins, setUserCoins } from '@/app/lib/lookup-actions';
 
-/**
- * Inline control for adjusting a user's balance directly from the table.
- */
 const UserBalanceControl = ({ phone }: { phone: string }) => {
   const db = useFirestore();
   const [isEditing, setIsEditing] = useState(false);
@@ -120,25 +117,36 @@ const UserBalanceControl = ({ phone }: { phone: string }) => {
   );
 };
 
-/**
- * Component for rendering and editing a dynamic package price row
- */
-const PackagePriceRow = ({ pkgDef, currentPrice }: { pkgDef: any, currentPrice: number }) => {
+const PackagePriceRow = ({ pkgDef, currentPrice, currentCredits }: { pkgDef: any, currentPrice: number, currentCredits: number }) => {
   const { toast } = useToast();
   const [priceInput, setPriceInput] = useState(String(currentPrice));
+  const [creditsInput, setCreditsInput] = useState(String(currentCredits));
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setPriceInput(String(currentPrice));
   }, [currentPrice]);
 
+  useEffect(() => {
+    setCreditsInput(String(currentCredits));
+  }, [currentCredits]);
+
   const handleSave = async () => {
     const parsedPrice = parseInt(priceInput);
+    const parsedCredits = parseInt(creditsInput);
     if (isNaN(parsedPrice) || parsedPrice <= 0) {
       toast({
         variant: "destructive",
         title: "Validation Error",
         description: "Price must be a valid positive number."
+      });
+      return;
+    }
+    if (isNaN(parsedCredits) || parsedCredits <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Credits must be a valid positive number."
       });
       return;
     }
@@ -148,18 +156,21 @@ const PackagePriceRow = ({ pkgDef, currentPrice }: { pkgDef: any, currentPrice: 
       await updateSystemConfig({
         packagePrices: {
           [pkgDef.id]: parsedPrice
+        },
+        packageCredits: {
+          [pkgDef.id]: parsedCredits
         }
       });
 
       toast({
         title: "Price Updated Successfully",
-        description: `${pkgDef.label} package price set to ₹${parsedPrice}.`
+        description: `${pkgDef.label} package configuration successfully saved.`
       });
     } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Update Failed",
-        description: err.message || "Failed to update package price."
+        description: err.message || "Failed to update package details."
       });
     } finally {
       setIsSaving(false);
@@ -167,30 +178,42 @@ const PackagePriceRow = ({ pkgDef, currentPrice }: { pkgDef: any, currentPrice: 
   };
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white/5 border border-white/10 rounded-lg gap-4">
+    <div className="flex flex-col p-4 bg-white/5 border border-white/10 rounded-lg gap-4">
       <div className="flex flex-col">
         <span className="text-sm font-bold text-white uppercase font-headline">Package: {pkgDef.label}</span>
-        <span className="text-xs text-muted-foreground font-code">Coins: {pkgDef.coins} Credits</span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground font-code uppercase">Price: ₹</span>
-        <Input 
-          type="number" 
-          value={priceInput}
-          onChange={(e) => setPriceInput(e.target.value)}
-          className="w-28 bg-black/50 border-white/10 text-primary font-code text-center h-9"
-          disabled={isSaving}
-          placeholder="PRICE"
-        />
-        <Button 
-          size="sm" 
-          onClick={handleSave} 
-          disabled={isSaving}
-          className="bg-primary hover:bg-primary/80 font-bold uppercase text-xs h-9 px-4 tracking-wider"
-        >
-          {isSaving ? "SAVING..." : "SAVE"}
-        </Button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground font-code uppercase w-16">Price: ₹</span>
+          <Input 
+            type="number" 
+            value={priceInput}
+            onChange={(e) => setPriceInput(e.target.value)}
+            className="flex-1 bg-black/50 border-white/10 text-primary font-code text-center h-9"
+            disabled={isSaving}
+            placeholder="PRICE"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground font-code uppercase w-16">Credits:</span>
+          <Input 
+            type="number" 
+            value={creditsInput}
+            onChange={(e) => setCreditsInput(e.target.value)}
+            className="flex-1 bg-black/50 border-white/10 text-primary font-code text-center h-9"
+            disabled={isSaving}
+            placeholder="CREDITS"
+          />
+        </div>
       </div>
+      <Button 
+        size="sm" 
+        onClick={handleSave} 
+        disabled={isSaving}
+        className="w-full bg-primary hover:bg-primary/80 font-bold uppercase text-xs h-9 tracking-wider"
+      >
+        {isSaving ? "SAVING..." : "SAVE"}
+      </Button>
     </div>
   );
 };
@@ -431,7 +454,7 @@ export default function AdminDashboardPage() {
               <CardHeader>
                 <CardTitle className="text-lg font-headline tracking-widest uppercase flex items-center gap-2">
                   <Coins className="w-5 h-5 text-primary" />
-                  Package Pricing Configuration
+                  Package Configuration Management
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -446,6 +469,7 @@ export default function AdminDashboardPage() {
                       key={pkgDef.id} 
                       pkgDef={pkgDef} 
                       currentPrice={config?.packagePrices?.[pkgDef.id] ?? pkgDef.defaultAmount}
+                      currentCredits={config?.packageCredits?.[pkgDef.id] ?? pkgDef.coins}
                     />
                   ))}
                 </div>

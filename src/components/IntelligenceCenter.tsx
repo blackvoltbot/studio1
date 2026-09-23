@@ -95,7 +95,6 @@ export const IntelligenceCenter: React.FC = () => {
   const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
   const { data: configData } = useDoc(configRef);
 
-  // Derive package elements seamlessly from Firestore configuration state
   const coinPackages = useMemo(() => {
     const defaults = [
       { id: "Starter", coins: 20, label: "Starter", defaultAmount: 50 },
@@ -105,9 +104,10 @@ export const IntelligenceCenter: React.FC = () => {
     ];
     return defaults.map(pkg => {
       const customPrice = configData?.packagePrices?.[pkg.id];
+      const customCredits = configData?.packageCredits?.[pkg.id];
       return {
         amount: customPrice !== undefined && customPrice !== null ? Number(customPrice) : pkg.defaultAmount,
-        coins: pkg.coins,
+        coins: customCredits !== undefined && customCredits !== null ? Number(customCredits) : pkg.coins,
         label: pkg.label
       };
     });
