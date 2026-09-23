@@ -33,20 +33,13 @@ interface SearchRecord {
   data: any;
 }
 
-const COIN_PACKAGES = [
-  { amount: 50, coins: 20, label: "Starter" },
-  { amount: 100, coins: 45, label: "Standard" },
-  { amount: 500, coins: 300, label: "Pro" },
-  { amount: 1000, coins: 900, label: "Enterprise" }
-];
-
 export const IntelligenceCenter: React.FC = () => {
   const [mounted, setMounted] = useState(false);
   const [number, setNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [history, setHistory] = useState<SearchRecord[]>([]);
   const [currentResult, setCurrentResult] = useState<SearchRecord | null>(null);
-  const [selectedPkg, setSelectedPkg] = useState<typeof COIN_PACKAGES[0] | null>(null);
+  const [selectedPkg, setSelectedPkg] = useState<any | null>(null);
   const [isSubmittingTx, setIsSubmittingTx] = useState(false);
   const [userPhone, setUserPhone] = useState<string | null>(null);
   const [activeTxId, setActiveTxId] = useState<string | null>(null);
@@ -85,11 +78,6 @@ export const IntelligenceCenter: React.FC = () => {
     }
   }, []);
 
-  const handlePkgSelect = (pkg: typeof COIN_PACKAGES[0]) => {
-    setSelectedPkg(pkg);
-    localStorage.setItem('bd_selected_pkg', JSON.stringify(pkg));
-  };
-
   const userRef = useMemo(() => {
     if (!db || !userPhone) return null;
     return doc(db, 'users', userPhone);
@@ -103,6 +91,32 @@ export const IntelligenceCenter: React.FC = () => {
   }, [db, activeTxId]);
 
   const { data: activeTx } = useDoc(activeTxRef);
+
+  const configRef = useMemo(() => db ? doc(db, 'config', 'system') : null, [db]);
+  const { data: configData } = useDoc(configRef);
+
+  // Derive package elements seamlessly from Firestore configuration state
+  const coinPackages = useMemo(() => {
+    const defaults = [
+      { id: "Starter", coins: 20, label: "Starter", defaultAmount: 50 },
+      { id: "Standard", coins: 45, label: "Standard", defaultAmount: 100 },
+      { id: "Pro", coins: 300, label: "Pro", defaultAmount: 500 },
+      { id: "Enterprise", coins: 900, label: "Enterprise", defaultAmount: 1000 }
+    ];
+    return defaults.map(pkg => {
+      const customPrice = configData?.packagePrices?.[pkg.id];
+      return {
+        amount: customPrice !== undefined && customPrice !== null ? Number(customPrice) : pkg.defaultAmount,
+        coins: pkg.coins,
+        label: pkg.label
+      };
+    });
+  }, [configData]);
+
+  const handlePkgSelect = (pkg: any) => {
+    setSelectedPkg(pkg);
+    localStorage.setItem('bd_selected_pkg', JSON.stringify(pkg));
+  };
 
   const currentCoins = userData?.coins || 0;
   const trialUsed = userData?.trialUsed || false;
@@ -122,7 +136,8 @@ export const IntelligenceCenter: React.FC = () => {
     
     setIsSubmittingTx(true);
     try {
-      const res = await requestCoinPackage(userPhone, selectedPkg);
+      const livePkg = coinPackages.find(p => p.label === selectedPkg.label) || selectedPkg;
+      const res = await requestCoinPackage(userPhone, livePkg);
       if (res.success && res.transactionId) {
         setActiveTxId(res.transactionId);
         localStorage.setItem('bd_active_tx_id', res.transactionId);
@@ -221,12 +236,12 @@ export const IntelligenceCenter: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {COIN_PACKAGES.map((pkg) => (
+              {coinPackages.map((pkg) => (
                 <button
-                  key={pkg.amount}
+                  key={pkg.label}
                   onClick={() => handlePkgSelect(pkg)}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all group border ${
-                    selectedPkg?.amount === pkg.amount 
+                    selectedPkg?.label === pkg.label 
                       ? 'bg-primary/20 border-primary shadow-[0_0_15px_rgba(242,13,13,0.3)]' 
                       : 'bg-white/5 border-white/10 hover:bg-primary/5 hover:border-primary/40'
                   }`}
@@ -245,7 +260,7 @@ export const IntelligenceCenter: React.FC = () => {
                     <CreditCard className="w-5 h-5 text-primary" />
                     <div>
                       <p className="text-xs font-code uppercase text-muted-foreground">Selection Ready</p>
-                      <p className="text-sm font-bold uppercase">₹{selectedPkg.amount} Package</p>
+                      <p className="text-sm font-bold uppercase">₹{coinPackages.find(p => p.label === selectedPkg.label)?.amount ?? selectedPkg.amount} Package</p>
                     </div>
                   </div>
                   <Button 

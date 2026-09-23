@@ -275,7 +275,7 @@ export async function removeTransaction(transactionId: string) {
 /**
  * Admin: Update system configuration.
  */
-export async function updateSystemConfig(config: { adminPassword?: string }) {
+export async function updateSystemConfig(config: any) {
   const { firestore } = initializeFirebase();
   if (!firestore) return { success: false };
   await setDoc(doc(firestore, 'config', 'system'), config, { merge: true });

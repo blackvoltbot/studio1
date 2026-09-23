@@ -32,15 +32,12 @@ import { approveTransaction, declineTransaction, removeTransaction, updateSystem
 
 /**
  * Inline control for adjusting a user's balance directly from the table.
- * Strictly scoped to a single user via the phone prop.
- * Provides increment/decrement and absolute value override with an explicit Update button.
  */
 const UserBalanceControl = ({ phone }: { phone: string }) => {
   const db = useFirestore();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   
-  // Scoped user reference to ensure we only target this specific individual
   const userRef = useMemo(() => {
     if (!db || !phone) return null;
     return doc(db, 'users', phone);
@@ -49,14 +46,12 @@ const UserBalanceControl = ({ phone }: { phone: string }) => {
   const { data: userData } = useDoc(userRef);
 
   const handleAdjust = async (amt: number) => {
-    // Mutation is strictly scoped to this specific phone number
     await adjustUserCoins(phone, amt);
   };
 
   const handleManualSave = async () => {
     const num = parseInt(editValue);
     if (!isNaN(num)) {
-      // Mutation is strictly scoped to this specific phone number
       await setUserCoins(phone, num);
     }
     setIsEditing(false);
@@ -119,6 +114,81 @@ const UserBalanceControl = ({ phone }: { phone: string }) => {
           title="Subtract 10 Coins"
         >
           <Minus className="w-3 h-3" />
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Component for rendering and editing a dynamic package price row
+ */
+const PackagePriceRow = ({ pkgDef, currentPrice }: { pkgDef: any, currentPrice: number }) => {
+  const { toast } = useToast();
+  const [priceInput, setPriceInput] = useState(String(currentPrice));
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setPriceInput(String(currentPrice));
+  }, [currentPrice]);
+
+  const handleSave = async () => {
+    const parsedPrice = parseInt(priceInput);
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Price must be a valid positive number."
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateSystemConfig({
+        packagePrices: {
+          [pkgDef.id]: parsedPrice
+        }
+      });
+
+      toast({
+        title: "Price Updated Successfully",
+        description: `${pkgDef.label} package price set to ₹${parsedPrice}.`
+      });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: err.message || "Failed to update package price."
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white/5 border border-white/10 rounded-lg gap-4">
+      <div className="flex flex-col">
+        <span className="text-sm font-bold text-white uppercase font-headline">Package: {pkgDef.label}</span>
+        <span className="text-xs text-muted-foreground font-code">Coins: {pkgDef.coins} Credits</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground font-code uppercase">Price: ₹</span>
+        <Input 
+          type="number" 
+          value={priceInput}
+          onChange={(e) => setPriceInput(e.target.value)}
+          className="w-28 bg-black/50 border-white/10 text-primary font-code text-center h-9"
+          disabled={isSaving}
+          placeholder="PRICE"
+        />
+        <Button 
+          size="sm" 
+          onClick={handleSave} 
+          disabled={isSaving}
+          className="bg-primary hover:bg-primary/80 font-bold uppercase text-xs h-9 px-4 tracking-wider"
+        >
+          {isSaving ? "SAVING..." : "SAVE"}
         </Button>
       </div>
     </div>
@@ -278,7 +348,6 @@ export default function AdminDashboardPage() {
                         <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground font-code">NO_REQUESTS_FOUND</td>
                       </tr>
                     ) : transactions?.map((tx, index) => {
-                      // Robust key generation following priority order
                       const rowKey = tx.id || tx.transactionId || `${tx.userPhone}_${tx.createdAt}` || `row_${index}_${Math.random()}`;
                       
                       return (
@@ -329,7 +398,7 @@ export default function AdminDashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="settings" className="max-w-2xl">
+          <TabsContent value="settings" className="max-w-2xl space-y-6">
             <Card className="glass-card border-white/5">
               <CardHeader>
                 <CardTitle className="text-lg font-headline tracking-widest uppercase flex items-center gap-2">
@@ -355,6 +424,31 @@ export default function AdminDashboardPage() {
                     </Button>
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-card border-white/5">
+              <CardHeader>
+                <CardTitle className="text-lg font-headline tracking-widest uppercase flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-primary" />
+                  Package Pricing Configuration
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { id: "Starter", label: "Starter", coins: 20, defaultAmount: 50 },
+                    { id: "Standard", label: "Standard", coins: 45, defaultAmount: 100 },
+                    { id: "Pro", label: "Pro", coins: 300, defaultAmount: 500 },
+                    { id: "Enterprise", label: "Enterprise", coins: 900, defaultAmount: 1000 }
+                  ].map((pkgDef) => (
+                    <PackagePriceRow 
+                      key={pkgDef.id} 
+                      pkgDef={pkgDef} 
+                      currentPrice={config?.packagePrices?.[pkgDef.id] ?? pkgDef.defaultAmount}
+                    />
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
